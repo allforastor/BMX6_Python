@@ -80,7 +80,7 @@ class DESC_REQ(NamedTuple):
 
 class DESC_ADV_msg(NamedTuple):
     trans_iid4x: int
-    name: string
+    name: str
     pkid: int
     code_version: int
     capabilites: int
@@ -109,3 +109,21 @@ class HASH_ADV(NamedTuple):
     desc_hash: int
     hash_msgs: int
 
+msg1 = HASH_REQ_msg(0,1)    #sample HASH_REQ_msg
+msg2 = HASH_REQ_msg(2,4)    #sample HASH_REQ_msg
+print(msg1, msg2)
+
+def my_function(type):      #prints contents of a list
+    for x in type:
+        print(x)
+
+msgs = [msg1, msg2]         #makes a list of messages
+my_function(msgs)           #prints the list of messages
+
+msg3 = HASH_REQ_msg(3,6)    #sample HASH_REQ_msg
+msgs.append(msg3)           #adds the msg to the list
+my_function(msgs)           #prints the list of messages
+
+#creates a HASH_REQ with a header and a list of messages
+hash = HASH_REQ(header(0,0,0,0), msgs)
+print(hash)                 #prints the entire frame
