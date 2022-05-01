@@ -121,7 +121,7 @@ msgs = [msg1, msg2]         #makes a list of messages
 my_function(msgs)           #prints the list of messages
 
 msg3 = HASH_REQ_msg(3,6)    #sample HASH_REQ_msg
-msgs.append(msg3)           #adds the msg to the list
+msgs.append(msg3)           #adds the msg to the end of the list
 my_function(msgs)           #prints the list of messages
 
 #creates a HASH_REQ with a header and a list of messages
