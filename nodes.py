@@ -119,7 +119,7 @@ class desc_tlv_hash_node(NamedTuple):
 class orig_node(NamedTuple):
     global_id: int                      # GLOBAL_ID_T
 
-    dhash_n: dhash_node
+    dhash_n: int                        # **dhash_node
     desc: int                           # **description
     desc_tlv_hash_tree: int             # **avl_tree
 
