@@ -2,8 +2,8 @@ from collections import deque
 import frames
 
 
-link_window = 4             #window size (48 default, 128 max)
-sample = deque(8*[0],8)     #127-sized array record
+link_window = 4             # window size (48 default, 128 max)
+sample = deque(8*[0],8)     # 127-sized array record
 
 print(sample)
 
