@@ -1,63 +1,73 @@
-from os import link
 import string
-import sys
-from typing import NamedTuple
+from dataclasses import dataclass
 
-class header(NamedTuple):
+@dataclass
+class header:
     short_frm: int
     relevant_frm: int
     frm_type: int
     frm_len: int
 
-class HELLO_ADV(NamedTuple):
+@dataclass
+class HELLO_ADV:
     frm_header: header
     HELLO_sqn_no: int
 
-class RP_ADV_msg(NamedTuple):
+@dataclass
+class RP_ADV_msg:
     rp_127range: int
     ogm_req: int
 
-class RP_ADV(NamedTuple):
+@dataclass
+class RP_ADV:
     frm_header: header
-    rp_msgs: list
+    rp_msgs: list[RP_ADV_msg]
 
-class OGM_ADV_msg(NamedTuple):
+@dataclass
+class OGM_ADV_msg:
     metric_mantisse: int
     metric_exponent: int
     iid_offset: int
     ogm_sqn_no: int
 
-class OGM_ADV(NamedTuple):
+@dataclass
+class OGM_ADV:
     frm_header: header
     agg_sqn_no: int
     ogm_dest_arr_size: int
-    ogm_dest_arr: list
-    ogm_msgs: list
+    ogm_dest_arr: list[int]
+    ogm_msgs: list[OGM_ADV_msg]
 
-class OGM_ACK(NamedTuple):
+@dataclass
+class OGM_ACK:
     frm_header: header
     ogm_dest: int
     agg_sqn_no: int
 
-class LINK_REQ(NamedTuple):
+@dataclass
+class LINK_REQ:
     frm_header: header
     dest_local_id: int
 
-class LINK_ADV_msg(NamedTuple):
+@dataclass
+class LINK_ADV_msg:
     trans_dev_index: int
     peer_dev_index: int
     peer_local_id: int
 
-class LINK_ADV(NamedTuple):
+@dataclass
+class LINK_ADV:
     frm_header: header
     dev_sqn_no_ref: int
-    link_msgs: list
+    link_msgs: list[LINK_ADV_msg]
 
-class DEV_REQ(NamedTuple):
+@dataclass
+class DEV_REQ:
     frm_header: header
     dest_local_id: int
 
-class DEV_ADV_msg(NamedTuple):
+@dataclass
+class DEV_ADV_msg:
     dev_index: int
     channel: int
     trans_bitrate_min: int
@@ -65,20 +75,24 @@ class DEV_ADV_msg(NamedTuple):
     local_ipv6: int
     mac_address: int
 
-class DEV_ADV(NamedTuple):
+@dataclass
+class DEV_ADV:
     frm_header: header
     dev_sqn_no: int
-    dev_msgs: list
+    dev_msgs: list[DEV_ADV_msg]
 
-class DESC_REQ_msg(NamedTuple):
+@dataclass
+class DESC_REQ_msg:
     dest_local_id: int
     receiver_iid: int
 
-class DESC_REQ(NamedTuple):
+@dataclass
+class DESC_REQ:
     frm_header: header
-    desc_msgs: list
+    desc_msgs: list[DESC_REQ_msg]
 
-class DESC_ADV_msg(NamedTuple):
+@dataclass
+class DESC_ADV_msg:
     trans_iid4x: int
     name: str
     pkid: int
@@ -91,20 +105,23 @@ class DESC_ADV_msg(NamedTuple):
     ext_len: int
     ext_frm: int
 
-class DESC_ADV(NamedTuple):
+@dataclass
+class DESC_ADV:
     frm_header: header
-    desc_msgs: list
+    desc_msgs: list[DESC_ADV_msg]
 
-class HASH_REQ_msg(NamedTuple):
+@dataclass
+class HASH_REQ_msg:
     dest_local_id: int
     receiver_iid: int
 
-class HASH_REQ(NamedTuple):
+@dataclass
+class HASH_REQ:
     frm_header: header
-    hash_msgs: list
+    hash_msgs: list[HASH_REQ_msg]
 
-class HASH_ADV(NamedTuple):
+@dataclass
+class HASH_ADV:
     frm_header: header
     trans_iid4x: int
     desc_hash: int
-    hash_msgs: int

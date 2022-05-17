@@ -1,13 +1,12 @@
 import ipaddress
-import string
-import sys
 from time import time
-from typing import NamedTuple
+from dataclasses import dataclass
 import frames
 
 # avl_tree local_tree
 
-class local_node(NamedTuple):
+@dataclass
+class local_node:
     local_id: int                       # LOCAL_ID_T
     link_tree: int                      # **avl_tree
     best_rp_linkdev: int                # **link_dev_node
@@ -41,11 +40,13 @@ class local_node(NamedTuple):
 
 # avl_tree link_tree
 
-class link_node_key(NamedTuple):
+@dataclass
+class link_node_key:
     local_id: int                       # LOCAL_ID_T
     dev_idx: int                        # DEVADV_IDX_T
 
-class link_node(NamedTuple):
+@dataclass
+class link_node:
     key: link_node_key
 
     link_ip: ipaddress.ip_address       # IPX_T
@@ -59,14 +60,16 @@ class link_node(NamedTuple):
     
     linkdev_list: list                  # list_head
 
-class link_dev_key(NamedTuple):
+@dataclass
+class link_dev_key:
     link: link_node
     dev: int                            # **dev_node (look in ip.h)
 
 
 # avl_tree link_dev_tree
 
-class lndev_probe_record(NamedTuple):
+@dataclass
+class lndev_probe_record:
     hello_sqn_max: int                  # HELLO_SQN_T
 
     hello_array: list                   # array[MAX_HELLO_SQN_WINDOW/8]
@@ -75,7 +78,8 @@ class lndev_probe_record(NamedTuple):
     hello_time_max: time                # TIME_T
 
 
-class link_dev_node(NamedTuple):
+@dataclass
+class link_dev_node:
     list_n: list                        # list_node
     key: link_dev_key
 
@@ -88,7 +92,8 @@ class link_dev_node(NamedTuple):
     link_adv_msg: int
     pkt_time_max: time                  # TIME_T
 
-class metric_record(NamedTuple):
+@dataclass
+class metric_record:
     sqn_bit_mask: int                   # SQN_T (0 - 8191)
 
     clr: int                            # SQN_T (0 - 8191)
@@ -96,7 +101,8 @@ class metric_record(NamedTuple):
 
     umetric: int                        # UMETRIC_T
 
-class router_node(NamedTuple):
+@dataclass
+class router_node:
     local_key: local_node
 
     metric_red: metric_record
@@ -109,10 +115,12 @@ class router_node(NamedTuple):
 
 # avl_tree neigh_trees
 
-class iid_repos(NamedTuple):
+@dataclass
+class iid_repos:
     placeholder: int                    # Geom's structure
 
-class neigh_node(NamedTuple):
+@dataclass
+class neigh_node:
     neigh_node_key: int                 # **neigh_node
     dhash_n: int                        # **dhash_node                 
 
@@ -130,11 +138,13 @@ class neigh_node(NamedTuple):
 
 # avl_tree orig_tree
 
-class description_hash(NamedTuple):
+@dataclass
+class description_hash:
     u8: int                             # array[HASH_SHA1_LEN] - [20]
     u32: int                            # array[HASH_SHA1_LEN/4] - [20/4]
 
-class desc_tlv_hash_node(NamedTuple):
+@dataclass
+class desc_tlv_hash_node:
     prev_hash: description_hash         # SHA1_T
     curr_hash: description_hash         # SHA1_T
     test_hash: description_hash         # SHA1_T
@@ -142,7 +152,8 @@ class desc_tlv_hash_node(NamedTuple):
     test_changed: int
     prev_changed: int
 
-class orig_node(NamedTuple):
+@dataclass
+class orig_node:
     global_id: str                      # GLOBAL_ID_T (32 len) + PKID_T
 
     dhash_n: int                        # **dhash_node
@@ -182,7 +193,8 @@ class orig_node(NamedTuple):
 # avl_tree dhash_tree
 # avl_tree dhash_invalid_tree
 
-class dhash_node(NamedTuple):
+@dataclass
+class dhash_node:
     dhash: description_hash             # description_hash
 
     referred_by_me_timestamp: time      # TIME_T
@@ -196,15 +208,18 @@ class dhash_node(NamedTuple):
 
 # avl_tree blacklisted_tree
 
-class black_node(NamedTuple):
+@dataclass
+class black_node:
     dhash: description_hash
 
-class throw_node(NamedTuple):
+@dataclass
+class throw_node:
     list_n: list                        # list_node
     addr: int
     netmask: int
 
-class ogm_aggreg_node(NamedTuple):
+@dataclass
+class ogm_aggreg_node:
     list_n: list                        # list_node
 
     ogm_advs: frames.OGM_ADV
