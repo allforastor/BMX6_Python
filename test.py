@@ -36,7 +36,9 @@ my_function(msgs)           # prints the list of messages
 
 # creates a RP_ADV with a header and a list of messages
 rp = RP_ADV(header(0,0,0,0), msgs)
+print("RP_ADV frame with newly added RP_ADV msg:")
 print(rp)                   # prints the entire frame
+print("\n")
 
 # individual value changes are now possible
 rp.frm_header.frm_len = 4
@@ -44,6 +46,7 @@ rp.frm_header.frm_type = 3
 rp.frm_header.relevant_frm = 2
 rp.frm_header.short_frm = 1
 
+print("updated RP_ADV frame after changing frame header:")
 print(rp)                   # prints the entire frame
 
 # the entire field can also be changed using the right data type
