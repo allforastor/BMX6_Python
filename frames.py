@@ -37,6 +37,25 @@ class OGM_ADV:
     ogm_dest_arr_size: int
     ogm_dest_arr: list[int]
     ogm_msgs: list[OGM_ADV_msg]
+        
+    def best_ogm_msg(self) -> OGM_ADV_msg:          #comparison of OGM_ADV_msg inside OGM_ADV frame
+        seq_no = []
+        count = 0
+        
+        for i in self.ogm_msgs:
+            seq_no.append(i.ogm_sqn_no)
+
+        max_seq_no = max(seq_no)
+
+        for j in self.ogm_msgs:
+            if j.ogm_sqn_no != max_seq_no:
+                count += 1
+                continue
+
+            else:
+                best = self.ogm_msgs[count]
+
+        return best
 
 @dataclass
 class OGM_ACK:
