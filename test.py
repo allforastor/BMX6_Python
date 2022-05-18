@@ -48,8 +48,10 @@ rp.frm_header.short_frm = 1
 
 print("updated RP_ADV frame after changing frame header:")
 print(rp)                   # prints the entire frame
+print("\n")
 
 # the entire field can also be changed using the right data type
 rp.frm_header = header(2,2,2,2)
 
+print("updated RP_ADV frame after changing frame header:")
 print(rp)                   # prints the entire frame
