@@ -3,41 +3,6 @@ from time import time
 from dataclasses import dataclass
 import frames
 
-# avl_tree local_tree
-
-@dataclass
-class local_node:
-    local_id: int                       # LOCAL_ID_T
-    link_tree: int                      # **avl_tree
-    best_rp_linkdev: int                # **link_dev_node
-    best_tp_linkdev: int                # **link_dev_node
-    best_linkdev: int                   # **link_dev_node
-    neigh: int                          # **neigh_node
-
-    packet_sqn: int                     # PKT_SQN_T
-    packet_time: time                   # TIME_T
-    packet_link_sqn_ref: int            # LINKADV_SQN_T (0 - 255)(frames.LINK_ADV.dev_sqn_no_ref)
-
-    # from the latest LINK_ADV
-    packet_link_sqn: int                # LINKADV_SQN_T (0 - 255)(frames.LINK_ADV.dev_sqn_no_ref)
-    link_adv_time: time                 # TIME_T
-    link_adv_msgs: int
-    link_adv_msg_for_me: int
-    link_adv_msg_for_him: int
-    link_adv: frames.LINK_ADV           # msg_link_adv
-    link_adv_dev_sqn_ref: int           # DEVADV_SQN_T (0 - 255)(frames.DEV_ADV.dev_sqn_np)
-
-    # from the latest DEV_ADV
-    dev_adv_sqn: int                    # DEVADV_SQN_T (0 - 255)(frames.DEV_ADV.dev_sqn_np)
-    dev_adv_msgs: int
-    dev_adv: frames.DEV_ADV             # msg_dev_adv
-
-    # from the latest RP_ADV
-    rp_adv_time: time                   # TIME_T
-    rp_ogm_request_received: int        # IDM_T
-    orig_routes: int
-
-
 # avl_tree link_tree
 
 @dataclass
@@ -56,14 +21,14 @@ class link_node:
 
     hello_sqn_max: int                  # HELLO_SQN_T
 
-    local: local_node
+    local: list                         # local_node
     
     linkdev_list: list                  # list_head
 
 @dataclass
 class link_dev_key:
     link: link_node
-    dev: int                            # **dev_node (look in ip.h)
+    dev: list                           # **dev_node (look in ip.h)
 
 
 # avl_tree link_dev_tree
@@ -92,6 +57,42 @@ class link_dev_node:
     link_adv_msg: int
     pkt_time_max: time                  # TIME_T
 
+
+# avl_tree local_tree
+
+@dataclass
+class local_node:
+    local_id: int                       # LOCAL_ID_T
+    link_tree: int                      # **avl_tree
+    best_rp_linkdev: link_dev_node
+    best_tp_linkdev: link_dev_node
+    best_linkdev: link_dev_node
+    neigh: list                         # neigh_node
+
+    packet_sqn: int                     # PKT_SQN_T
+    packet_time: time                   # TIME_T
+    packet_link_sqn_ref: int            # LINKADV_SQN_T (0 - 255)(frames.LINK_ADV.dev_sqn_no_ref)
+
+    # from the latest LINK_ADV
+    packet_link_sqn: int                # LINKADV_SQN_T (0 - 255)(frames.LINK_ADV.dev_sqn_no_ref)
+    link_adv_time: time                 # TIME_T
+    link_adv_msgs: int
+    link_adv_msg_for_me: int
+    link_adv_msg_for_him: int
+    link_adv: frames.LINK_ADV           # msg_link_adv
+    link_adv_dev_sqn_ref: int           # DEVADV_SQN_T (0 - 255)(frames.DEV_ADV.dev_sqn_np)
+
+    # from the latest DEV_ADV
+    dev_adv_sqn: int                    # DEVADV_SQN_T (0 - 255)(frames.DEV_ADV.dev_sqn_np)
+    dev_adv_msgs: int
+    dev_adv: frames.DEV_ADV             # msg_dev_adv
+
+    # from the latest RP_ADV
+    rp_adv_time: time                   # TIME_T
+    rp_ogm_request_received: int        # IDM_T
+    orig_routes: int
+
+
 @dataclass
 class metric_record:
     sqn_bit_mask: int                   # SQN_T (0 - 8191)
@@ -103,7 +104,7 @@ class metric_record:
 
 @dataclass
 class router_node:
-    local_key: local_node
+    local_key: list                     # local_node
 
     metric_red: metric_record
     ogm_sqn_last: int                   # OGM_SQN_T
@@ -116,15 +117,29 @@ class router_node:
 # avl_tree neigh_trees
 
 @dataclass
+class iid_ref:
+    myIID4x: int                         # IID_T
+    referred_by_neigh_timestamp_sec: int        
+
+@dataclass
 class iid_repos:
-    placeholder: int                    # Geom's structure
+    # arr_size: int
+    # min_free: int
+    # max_free: int
+    # tot_used: int
+    arr: dict                           # maps IID to its hash 
+    ref: iid_ref
+
+    def print_repos(self):              # prints repository table contents
+        print(self.arr)
+        print("-----")
 
 @dataclass
 class neigh_node:
-    neigh_node_key: int                 # **neigh_node
-    dhash_n: int                        # **dhash_node                 
+    neigh_node_key: list                # neigh_node
+    dhash_n: list                       # dhash_node                 
 
-    local: local_node
+    local: list                         # local_node
 
     neighIID4me: int                    # IID_T
 
@@ -135,6 +150,13 @@ class neigh_node:
     ogm_aggregations_not_acked: list    # array[AGGREG_ARRAY_BYTE_SIZE]
     ogm_aggregations_received: list     # array[AGGREG_ARRAY_BYTE_SIZE]
 
+    def get_myIID4x_by_neighIID4x(self, neighIID4x):
+        myIID4x = self.neighIID4x_repos.arr[neighIID4x]
+
+        try:
+            return myIID4x
+        except KeyError:
+            return -1
 
 # avl_tree orig_tree
 
@@ -156,7 +178,7 @@ class desc_tlv_hash_node:
 class orig_node:
     global_id: str                      # GLOBAL_ID_T (32 len) + PKID_T
 
-    dhash_n: int                        # **dhash_node
+    dhash_n: list                       # dhash_node
     desc: int                           # **description (MISSING???)
     desc_tlv_hash_tree: int             # **avl_tree
 
@@ -185,9 +207,9 @@ class orig_node:
 
     rt_tree: int                        # **avl_tree
 
-    best_rt_local: router_node          # *remove*
+    best_rt_local: router_node          
     curr_rt_local: router_node
-    cutt_rt_linkdev: link_dev_node
+    curr_rt_linkdev: link_dev_node
 
 
 # avl_tree dhash_tree
@@ -195,22 +217,22 @@ class orig_node:
 
 @dataclass
 class dhash_node:
-    dhash: description_hash             # description_hash
+    dhash: description_hash             
 
     referred_by_me_timestamp: time      # TIME_T
 
-    neigh: neigh_node
+    neigh: list                         # neigh_node
 
     myIID4origL: int                    # IID_T
     
-    orig_n: orig_node
+    orig_n: list                        # orig_node
 
 
 # avl_tree blacklisted_tree
 
 @dataclass
 class black_node:
-    dhash: description_hash
+    dhash: list                         # description_hash
 
 @dataclass
 class throw_node:
@@ -229,7 +251,7 @@ class ogm_aggreg_node:
 
     aggregated_msgs: int
 
-    sqn: int                            # **AGGREG_SQN_T
+    sqn: int                            # AGGREG_SQN_T (8 bits)
     tx_attempt: int
 
 
