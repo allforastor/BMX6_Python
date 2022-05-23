@@ -116,8 +116,22 @@ class router_node:
 # avl_tree neigh_trees
 
 @dataclass
+class iid_ref:
+    myIID4x: int                                # IID_T
+    referred_by_neigh_timestamp_sec: int        
+
+@dataclass
 class iid_repos:
-    placeholder: int                    # Geom's structure
+    # arr_size: int
+    # min_free: int
+    # max_free: int
+    # tot_used: int
+    arr: dict  # maps IID to its hash 
+    ref: iid_ref
+
+    def print_repos(self):              # prints repository table contents
+        print(self.arr)
+        print("-----")
 
 @dataclass
 class neigh_node:
@@ -135,6 +149,13 @@ class neigh_node:
     ogm_aggregations_not_acked: list    # array[AGGREG_ARRAY_BYTE_SIZE]
     ogm_aggregations_received: list     # array[AGGREG_ARRAY_BYTE_SIZE]
 
+    def get_myIID4x_by_neighIID4x(self, neighIID4x):
+        myIID4x = self.neighIID4x_repos.arr[neighIID4x]
+
+        try:
+            return myIID4x
+        except KeyError:
+            return -1
 
 # avl_tree orig_tree
 
