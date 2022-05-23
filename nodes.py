@@ -253,5 +253,3 @@ class ogm_aggreg_node:
 
     sqn: int                            # AGGREG_SQN_T (8 bits)
     tx_attempt: int
-
-
