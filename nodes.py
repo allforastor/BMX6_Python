@@ -1,5 +1,7 @@
 import ipaddress
-from time import time
+from sys import getsizeof
+import time
+from collections import deque
 from dataclasses import dataclass
 import frames
 
@@ -35,13 +37,53 @@ class link_dev_key:
 
 @dataclass
 class lndev_probe_record:
-    hello_sqn_max: int                  # HELLO_SQN_T
+    hello_sqn_max: int = -1             # HELLO_SQN_T
 
-    hello_array: list                   # array[MAX_HELLO_SQN_WINDOW/8]
-    hello_sum: int
-    hello_umetric: int                  # UMETRIC_T
-    hello_time_max: time                # TIME_T
+    hello_array: deque = deque(128*[0], 128)
+    hello_sum: int = 0
+    hello_umetric: int = 0              # UMETRIC_T
+    hello_time_max: time = 0            # TIME_T
 
+    link_window: int = 48               # window size (48 default, 128 max)
+
+    # TO DO: make a function that appends 0 when nothing is received after some time
+
+    def update_record(self, update):
+        if(update == 1):
+            self.hello_array.append(1)
+        elif(update == 0):
+            self.hello_array.append(0)
+        self.hello_sqn_max = self.hello_sqn_max + 1
+        self.hello_time_max = time.localtime()
+        current_time = time.strftime("%H:%M:%S", self.hello_time_max)
+        print(current_time)
+
+    def HELLO_received(self, sqn):
+        if self.hello_sqn_max == -1:
+            print("first received")
+        if sqn == self.hello_sqn_max:
+            self.update_record(1)
+        elif(sqn > self.hello_sqn_max):
+            while sqn != self.hello_sqn_max + 1:
+                self.update_record(0)
+            self.update_record(1)
+
+    def get_link_qual(self):
+        self.hello_sum = 0
+        for x in range(self.link_window):
+            self.hello_sum = self.hello_sum + self.hello_array[(len(self.hello_array) - 1) - x]
+        self.hello_umetric = (self.hello_sum/self.link_window)*100
+
+# # lndev_probe_record testing functions
+# lndev = lndev_probe_record(hello_array = deque(8*[0], 8), link_window = 4)
+# print(lndev.hello_array)
+# lndev.update_record(1)
+# lndev.update_record(1)
+# print(lndev.hello_array)
+# lndev.HELLO_received(3)
+# print(lndev.hello_array)
+# lndev.get_link_qual()
+# print(lndev.hello_umetric)
 
 @dataclass
 class link_dev_node:
