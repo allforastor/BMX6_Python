@@ -93,7 +93,23 @@ class DEV_ADV_msg:
     trans_bitrate_max: int
     local_ipv6: int
     mac_address: int
+        
+    def get_local_ipv6(self):  #gets the ipv6 address of the device
+        try:
+            s = socket.socket(socket.AF_INET6, socket.SOCK_DGRAM)
+            s.connect(('2001:4860:4860::8888', 1))
+            self.local_ipv6 = s.getsockname()[0]
 
+        except:
+            self.local_ipv6 = '::1'
+
+        finally:
+            if 's' in locals():
+                s.close()
+                
+    def get_mac_address(self): #gets the mac address of the device
+        self.mac_address = ':'.join(re.findall('..', '%012x' % uuid.getnode()))
+        
 @dataclass
 class DEV_ADV:
     frm_header: header
