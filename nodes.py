@@ -4,32 +4,33 @@ import time
 from collections import deque
 from dataclasses import dataclass
 import frames
+import miscellaneous
 
 # avl_tree link_tree
 
 @dataclass
 class link_node_key:
-    local_id: int                       # LOCAL_ID_T
-    dev_idx: int                        # DEVADV_IDX_T
+    local_id: int                       # local ID of the other node (LOCAL_ID_T)
+    dev_idx: int                        # interface index of the other node (DEVADV_IDX_T)
 
 @dataclass
 class link_node:
-    key: link_node_key
+    key: link_node_key                  # holds information about the other node
 
-    link_ip: ipaddress.ip_address       # IPX_T
+    link_ip: ipaddress.ip_address       # ip adress of the link (IPX_T)
     
-    pkt_time_max: time                  # TIME_T
-    hello_time_max: time                # TIME_T
+    pkt_time_max: time                  # timeout value for packets (TIME_T)
+    hello_time_max: time                # timeout value for the HELLO packet (TIME_T)
 
-    hello_sqn_max: int                  # HELLO_SQN_T
+    hello_sqn_max: int                  # last sequence number (HELLO_SQN_T)
 
-    local: list                         # local_node
+    local: list                         # local node (local_node)
     
-    linkdev_list: list                  # list_head
+    linkdev_list: list                  # list of link devs (list_head)
 
 @dataclass
 class link_dev_key:
-    link: link_node
+    link: link_node                     # link that uses the interface
     dev: list                           # **dev_node (look in ip.h)
 
 
@@ -88,12 +89,12 @@ class lndev_probe_record:
 @dataclass
 class link_dev_node:
     list_n: list                        # list_node
-    key: link_dev_key
+    key: link_dev_key                   # holds information about the link and device
 
     tx_probe_umetric: int               # UMETRIC_T
     timeaware_tx_probe: int             # UMETRIC_T
     timeaware_rx_probe: int             # UMETRIC_T
-    rx_probe_record: lndev_probe_record
+    rx_probe_record: lndev_probe_record # record that is used for link metric calculation
 
     tx_task_lists: list                 # list_head - array[FRAME_TYPE_ARRSZ]
     link_adv_msg: int
