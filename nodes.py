@@ -26,7 +26,7 @@ class link_node:
 
     local: list                         # local node (local_node)
     
-    linkdev_list: list                  # list of link devs (list_head)
+    linkdev_list: list                  # list of link_devs (list_head)
 
 @dataclass
 class link_dev_key:
@@ -91,14 +91,14 @@ class link_dev_node:
     list_n: list                        # list_node
     key: link_dev_key                   # holds information about the link and device
 
-    tx_probe_umetric: int               # UMETRIC_T
-    timeaware_tx_probe: int             # UMETRIC_T
-    timeaware_rx_probe: int             # UMETRIC_T
+    tx_probe_umetric: int               # RP_ADV.rp_127range (UMETRIC_T)
+    timeaware_tx_probe: int             # tx_probe_umetric which considers delay (UMETRIC_T) metrics.c
     rx_probe_record: lndev_probe_record # record that is used for link metric calculation
+    timeaware_rx_probe: int             # rx_probe_record.hello_time_max which considers delay (UMETRIC_T) metrics.c
 
-    tx_task_lists: list                 # list_head - array[FRAME_TYPE_ARRSZ]
-    link_adv_msg: int
-    pkt_time_max: time                  # TIME_T
+    tx_task_lists: list                 # array of scheduled frames (list_head - array[FRAME_TYPE_ARRSZ])
+    link_adv_msg: int                   # frame counter of announced links (-1 if not announced)
+    pkt_time_max: time                  # timeout value for packets (TIME_T)
 
 
 # avl_tree local_tree
@@ -117,21 +117,21 @@ class local_node:
     packet_link_sqn_ref: int            # LINKADV_SQN_T (0 - 255)(frames.LINK_ADV.dev_sqn_no_ref)
 
     # from the latest LINK_ADV
-    packet_link_sqn: int                # LINKADV_SQN_T (0 - 255)(frames.LINK_ADV.dev_sqn_no_ref)
-    link_adv_time: time                 # TIME_T
-    link_adv_msgs: int
+    link_adv_sqn: int                   # sqn of the latest LINK_ADV (LINKADV_SQN_T (0 - 255)(frames.LINK_ADV.dev_sqn_no_ref)
+    link_adv_time: time                 # time of the latest LINK_ADV frame (TIME_T)
+    link_adv_msgs: int                  #
     link_adv_msg_for_me: int
     link_adv_msg_for_him: int
     link_adv: frames.LINK_ADV           # msg_link_adv
     link_adv_dev_sqn_ref: int           # DEVADV_SQN_T (0 - 255)(frames.DEV_ADV.dev_sqn_np)
 
     # from the latest DEV_ADV
-    dev_adv_sqn: int                    # DEVADV_SQN_T (0 - 255)(frames.DEV_ADV.dev_sqn_np)
+    dev_adv_sqn: int                    # sqn of the latest DEV_ADV (DEVADV_SQN_T (0 - 255)(frames.DEV_ADV.dev_sqn_np))
     dev_adv_msgs: int
     dev_adv: frames.DEV_ADV             # msg_dev_adv
 
     # from the latest RP_ADV
-    rp_adv_time: time                   # TIME_T
+    rp_adv_time: time                   # time of the latest RP_ADV frame (TIME_T)
     rp_ogm_request_received: int        # IDM_T
     orig_routes: int
 
