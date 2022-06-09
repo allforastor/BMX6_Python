@@ -52,21 +52,40 @@ def recvpacket(ip, port):
 
     return data
 
-#sending request frames alongside with the unsolicited adv frames
-def send_REQ_frame(REQ_frame, frame_list2send):
+#adding request frames to frames 2 send list alongside with the unsolicited adv frames
+def send_REQ_frame(REQ_frame, frames2send):
     if REQ_frame == frames.LINK_REQ:
-        frame_list2send.extend([REQ_frame, frames.LINK_ADV])
+        frames2send.extend([REQ_frame, frames.LINK_ADV])
 
     if REQ_frame == frames.HASH_REQ:
-        frame_list2send.extend([REQ_frame, frames.HASH_ADV])
+        frames2send.extend([REQ_frame, frames.HASH_ADV])
 
     if REQ_frame == frames.DESC_REQ:
-        frame_list2send.extend([REQ_frame, frames.DESC_ADV])
+        frames2send.extend([REQ_frame, frames.DESC_ADV])
 
     if REQ_frame == frames.DEV_REQ:
-        frame_list2send.extend([REQ_frame, frames.DEV_ADV])
+        frames2send.extend([REQ_frame, frames.DEV_ADV])
 
+#checks if the received packet has req frames, then add appropriate adv frames
+#to the frames to send list
+def send_ADV_frames(recvd_frames, frames2send):
+    for i in recvd_frames:
 
+        if i == frames.DESC_REQ:
+            frames2send.append(frames.DESC_ADV)
+
+        if i == frames.LINK_REQ:
+            frames2send.append(frames.LINK_ADV)
+
+        if i == frames.HASH_REQ:
+            frames2send.append(frames.HASH_ADV)
+
+        if i == frames.DEV_REQ:
+            frames2send.append(frames.DEV_ADV)
+        
+
+        
+        
 #just test port values
 port = 8080
 ip = socket.gethostbyname(socket.gethostname())
@@ -95,19 +114,11 @@ while True:
 
         #else append non periodic frames
         else:
-            for i in recvd.frames: #iterate through the list of frames received to 
-                                    # check if there is any REQ frame
-                if i == frames.DESC_REQ:
-                    frames2send.append(frames.DESC_ADV)
-
-                if i == frames.LINK_REQ:
-                    frames2send.append(frames.LINK_ADV)
-
-                if i == frames.HASH_REQ:
-                    frames2send.append(frames.HASH_ADV)
-
-                if i == frames.DEV_REQ:
-                    frames2send.append(frames.DEV_ADV)
+            recvd_frames = recvd.frames #store packet frames list to recevd_frames
+            
+            send_ADV_frames(recvd_frames, frames2send) ##iterate through the list of frames received to 
+                                    # check if there is any REQ frame. add appropriate ADV frame to frames list 
+                                    # if there is any REQ frame
 
             knowsAllNodes = True #then knows every node
 
