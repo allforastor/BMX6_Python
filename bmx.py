@@ -54,7 +54,9 @@ def recvpacket(ip, port):
 
 #adding request frames to frames 2 send list alongside with the unsolicited adv frames
 def send_REQ_frame(REQ_frame, frames2send):
-    if REQ_frame == frames.LINK_REQ:
+    #if we wish to send LINK_REQ, it will append LINK_REQ and LINK_ADV to frames2send list 
+    #same with other REQ frames
+    if REQ_frame == frames.LINK_REQ: 
         frames2send.extend([REQ_frame, frames.LINK_ADV])
 
     if REQ_frame == frames.HASH_REQ:
@@ -69,8 +71,11 @@ def send_REQ_frame(REQ_frame, frames2send):
 #checks if the received packet has req frames, then add appropriate adv frames
 #to the frames to send list
 def send_ADV_frames(recvd_frames, frames2send):
-    for i in recvd_frames:
-
+    for i in recvd_frames: ##iterate through the list of frames received to 
+                            # check if there is any REQ frame. add appropriate ADV frame to frames list 
+                            # if there is any REQ frame
+        #if there is DESC_REQ in received frame list, it will append DESC_ADV to frames2send list
+        #same with others
         if i == frames.DESC_REQ:
             frames2send.append(frames.DESC_ADV)
 
@@ -116,9 +121,7 @@ while True:
         else:
             recvd_frames = recvd.frames #store packet frames list to recevd_frames
             
-            send_ADV_frames(recvd_frames, frames2send) ##iterate through the list of frames received to 
-                                    # check if there is any REQ frame. add appropriate ADV frame to frames list 
-                                    # if there is any REQ frame
+            send_ADV_frames(recvd_frames, frames2send) 
 
             knowsAllNodes = True #then knows every node
 
