@@ -114,7 +114,7 @@ while True:
     pktSqn += 1 #increment sqn number every sending of packets
 
     #creating packets
-    msg = packet(packet_header(3,4,5,6,7,pktSqn, 9, 0), frames2send)
+    msg = packet(packet_header(3,4,5,6,7,pktSqn, 9, 0), frames2send) #some of the integers are test values
     print(msg)
     time.sleep(0.5) #Hello and Rp sent every 0.5s
     print(datetime.now().time()) #show current time
