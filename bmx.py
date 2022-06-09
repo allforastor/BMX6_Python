@@ -67,7 +67,7 @@ def send_REQ_frame(REQ_frame, frame_list2send):
         frame_list2send.extend([REQ_frame, frames.DEV_ADV])
 
 
-
+#just test port values
 port = 8080
 ip = socket.gethostbyname(socket.gethostname())
 
