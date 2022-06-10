@@ -1,4 +1,6 @@
+from importlib.machinery import OPTIMIZED_BYTECODE_SUFFIXES
 import ipaddress
+import struct
 from sys import getsizeof
 import time
 from collections import deque
@@ -17,7 +19,7 @@ class link_node_key:
 class link_node:
     key: link_node_key                  # holds information about the other node
 
-    link_ip: ipaddress.ip_address       # ip adress of the link (IPX_T)
+    link_ip: ipaddress.ip_address       # ip address of the link (IPX_T)
     
     pkt_time_max: time                  # timeout value for packets (TIME_T)
     hello_time_max: time                # timeout value for the HELLO packet (TIME_T)
@@ -28,24 +30,98 @@ class link_node:
     
     linkdev_list: list                  # list of link_devs (list_head)
 
+    def pkt_received(self, frame):
+        self.pkt_time_max = time.localtime()
+        if(type(frame) == frames.HELLO_ADV):
+            self.hello_time_max = time.localtime()
+            # current_time = time.strftime("%H:%M:%S", self.hello_time_max)
+            # print(current_time)
+
+    def return_rp_adv_time(self, local_id):
+        for x in self.local:
+            if(x.local_id == local_id):
+                return x.rp_adv_time
+
+
+@dataclass
+class dev_node:
+    if_link: int                # if_link_node
+    if_llocal_addr: int         # if_addr_node
+    if_global_addr: int         # if_addr_node
+
+    hard_conf_changed: int
+    soft_conf_changed: int
+    autoIP6configured: int      # net_key
+    autoIP6ifindex: int
+    active: int
+    activate_again: int
+    activate_cancelled: int
+    tmp_flag_for_to_be_send_adv: int
+
+    dev_adv_msg: int
+
+    ifname_label: int           # IFNAME_T
+    ifname_device: int          # IFNAME_T
+
+    # dummy_lndev: link_dev_node
+    
+    llip_key: int               # dev_ip_key
+    mac: int                    # MAC_T
+
+    ip_llocal_str: str          # array[IPX_STR_LEN]
+    ip_global_str: str          # array[IPX_STR_LEN]
+    ip_brc_str: str             # array[IPX_STR_LEN]
+
+    llocal_unicast_addr: int    # sockaddr_storage
+    tx_netwbrc_addr: int        # sockaddr_storage
+
+    unicast_sock: int
+    rx_mcast_sock: int
+    rx_fullbrc_sock: int
+
+    link_hello_sqn: int         # HELLO_SQN_T
+
+    tx_task_lists: list         # array of scheduled frames (list_head - array[FRAME_TYPE_ARRSZ])
+    tx_task_interval_tree: int  # avl_tree
+
+    announce: int
+
+    linklayer_conf: int
+    linklayer: int
+
+    channel_conf: int
+    channel: int
+
+    umetric_min_conf: int       # UMETRIC_T
+    umetric_min: int            # UMETRIC_T
+
+    umetric_max_conf: int       # UMETRIC_T
+    umetric_max: int            # UMETRIC_T
+
+    global_prefix_conf_: int    # net_key
+    llocal_prefix_conf_: int    # net_key
+    
+    plugin_data: list           # void*
+
+
 @dataclass
 class link_dev_key:
     link: link_node                     # link that uses the interface
-    dev: list                           # **dev_node (look in ip.h)
+    dev: dev_node                       # outgoing interface for transmiting (dev_node)
 
 
 # avl_tree link_dev_tree
 
 @dataclass
 class lndev_probe_record:
-    hello_sqn_max: int = -1             # HELLO_SQN_T
+    hello_sqn_max: int = -1             # last sequence number (HELLO_SQN_T)
 
     hello_array: deque = deque(128*[0], 128)
-    hello_sum: int = 0
+    hello_sum: int = 0                  # number of HELLO_ADVs received within the window
     hello_umetric: int = 0              # UMETRIC_T
-    hello_time_max: time = 0            # TIME_T
+    hello_time_max: time = 0            # timeout value for the HELLO packet (TIME_T)
 
-    link_window: int = 48               # window size (48 default, 128 max)
+    link_window: int = 48               # sliding window size (48 default, 128 max)
 
     # TO DO: make a function that appends 0 when nothing is received after some time
 
@@ -55,9 +131,6 @@ class lndev_probe_record:
         elif(update == 0):
             self.hello_array.append(0)
         self.hello_sqn_max = self.hello_sqn_max + 1
-        self.hello_time_max = time.localtime()
-        current_time = time.strftime("%H:%M:%S", self.hello_time_max)
-        print(current_time)
 
     def HELLO_received(self, sqn):
         if self.hello_sqn_max == -1:
@@ -68,6 +141,9 @@ class lndev_probe_record:
             while sqn != self.hello_sqn_max + 1:
                 self.update_record(0)
             self.update_record(1)
+        self.hello_time_max = time.localtime()
+        current_time = time.strftime("%H:%M:%S", self.hello_time_max)
+        print(current_time)
 
     def get_link_qual(self):
         self.hello_sum = 0
@@ -94,12 +170,17 @@ class link_dev_node:
     tx_probe_umetric: int               # RP_ADV.rp_127range (UMETRIC_T)
     timeaware_tx_probe: int             # tx_probe_umetric which considers delay (UMETRIC_T) metrics.c
     rx_probe_record: lndev_probe_record # record that is used for link metric calculation
-    timeaware_rx_probe: int             # rx_probe_record.hello_time_max which considers delay (UMETRIC_T) metrics.c
+    timeaware_rx_probe: int             # rx_probe_record.hello_umetric which considers delay (UMETRIC_T) metrics.c
 
     tx_task_lists: list                 # array of scheduled frames (list_head - array[FRAME_TYPE_ARRSZ])
     link_adv_msg: int                   # frame counter of announced links (-1 if not announced)
     pkt_time_max: time                  # timeout value for packets (TIME_T)
 
+    local_id = 0 # placeholder
+
+    def __post_init__(self):
+        rp_adv_time = link_dev_key.link.return_rp_adv_time(self.local_id);
+        self.timeaware_tx_probe = self.tx_probe_umetric
 
 # avl_tree local_tree
 

@@ -63,7 +63,7 @@ import sys
 @dataclass
 class big:
     smaller: list
-    smallest: list
+    # smallest: list = []
 
 @dataclass
 class small:
@@ -71,65 +71,70 @@ class small:
     id: int = 0
     name: str = "small"
 
-    def __post_init__(self):
-        self.name = self.name+str(self.id)
+#     def __post_init__(self):
+#         self.name = self.name+str(self.id)
 
-@dataclass
-class s:
-    bigger: list
-    count: int = 0
-    name: str = "s"
+# @dataclass
+# class s:
+#     bigger: list
+#     count: int = 0
+#     name: str = "s"
 
-    def __post_init__(self):
-        self.name = self.name+str(self.count)
+#     def __post_init__(self):
+#         self.name = self.name+str(self.count)
 
-big_class = big([],[])
+big_class = big([])
 small_class1 = small(big_class, 1)
 # s1 = s(big_class, 1)
-s1 = s([], 1)
+# s1 = s([], 1)
 
 print("BIG:\t", big_class)
 print("SMALL:\t", small_class1)
-print("S:\t", s1)
+# print("S:\t", s1)
 
-# print(sys.getsizeof(big_class))
-# print(sys.getsizeof(small_class))
+# # print(sys.getsizeof(big_class))
+# # print(sys.getsizeof(small_class))
 
 big_class.smaller.append(small_class1)
-big_class.smallest.append(s1)
-s1.bigger.append(big_class)
+# big_class.smallest.append(s1)
+# s1.bigger.append(big_class)
 
 print("BIG:\t", big_class)
 print("SMALL:\t", small_class1)
-print("S:\t", s1)
+# print("S:\t", s1)
 
 small_class2 = small(big_class, 2)
 big_class.smaller.append(small_class2)
-# print(sys.getsizeof(big_class))
-# print(sys.getsizeof(small_class))
+# # print(sys.getsizeof(big_class))
+# # print(sys.getsizeof(small_class))
 
-# print("BIG:\t", big_class)
-# print("SMALL:\t", small_class1)
-print("SMALL:\t", small_class2)
+print("BIG:\t", big_class)
+print("SMALL:\t", small_class1)
+# print("SMALL:\t", small_class2)
 
-small_class3 = small(big_class, 3)
-big_class.smaller.append(small_class3)
+# small_class3 = small(big_class, 3)
+# big_class.smaller.append(small_class3)
 
-# print("BIG:\t", big_class)
+# # print("BIG:\t", big_class)
 
 def print_big(big): 
     print("Printing smaller objects:")
     for x in big.smaller:
-        print(x.name)
+        print(x.bigger)
         # print(x.bigger)
 
-# print("SMALL:\t", small_class1)
-# print("SMALL:\t", small_class2)
-print("SMALL:\t", small_class3)
-print("BIG:\t", big_class)
+# # print("SMALL:\t", small_class1)
+# # print("SMALL:\t", small_class2)
+# print("SMALL:\t", small_class3)
+# print("BIG:\t", big_class)
 print_big(big_class)
 
 # print(sys.getsizeof(big_class))
 # print(sys.getsizeof(small_class1))
 # print(sys.getsizeof(small_class2))
 # print(sys.getsizeof(small_class3))
+
+# x = int(10)
+# print(type(x))
+# if(type(x) == int):
+#     print("Wow, it's an int!")
