@@ -214,7 +214,19 @@ class local_node:
     # from the latest RP_ADV
     rp_adv_time: time                   # time of the latest RP_ADV frame (TIME_T)
     rp_ogm_request_received: int        # IDM_T
-    orig_routes: int
+    orig_routes: int                    # store originator
+    
+    def set_iid_offset_for_ogm_msg(self, OGM_ADV, neighbor):   # initialize iid offset for msgs 
+        for msg in OGM_ADV.ogm_msgs:
+            if msg.iid_offset is None:  # ogm msg is in the originator, initialization
+                msg.iid_offset = 0
+                iid = msg.iid_offset
+            else:
+                neighiid = msg.iid_offset   # ogm msg contains iid of the originator
+                iid = neighbor.get_myIID4x_by_neighIID4x(neighiid)
+                msg.iid_offset = iid
+
+        self.orig_routes = iid  # store iid value to local node
 
 
 @dataclass
@@ -281,6 +293,19 @@ class neigh_node:
             return myIID4x
         except KeyError:
             return -1
+        
+    def get_node_by_neighIID4x(self, neigh, neighIID4x):    # added by harold from repos.py
+        if neigh.get_myIID4x_by_neighIID4x(neighIID4x) == -1:
+            # send HASH_REQ message
+            print("Neighbor IID unknown. Sending Hash Request")
+        else:
+            myIID4x = neigh.get_myIID4x_by_neighIID4x(neighIID4x)
+
+            if self.arr[myIID4x] == KeyError:
+                # send DESC_REQ message
+                print("Node description unknown. Sending Description Request")
+            else:
+                print("Retrieved hash from local IID repository: " + self.arr[myIID4x])
 
 # avl_tree orig_tree
 
