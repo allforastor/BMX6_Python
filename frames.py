@@ -29,6 +29,12 @@ class OGM_ADV_msg:
     metric_exponent: int
     iid_offset: int
     ogm_sqn_no: int
+        
+    def __post_init__(self):  
+        if self.metric_mantisse is None:
+            self.metric_mantisse = 0
+        if self.metric_exponent is None:
+            self.metric_exponent = 0
 
 @dataclass
 class OGM_ADV:
