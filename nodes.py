@@ -214,7 +214,7 @@ class local_node:
     # from the latest RP_ADV
     rp_adv_time: time                   # time of the latest RP_ADV frame (TIME_T)
     rp_ogm_request_received: int        # IDM_T
-    orig_routes: int
+    orig_routes: int                    # store originator
     
     def set_iid_offset_for_ogm_msg(self, OGM_ADV, neighbor):   # initialize iid offset for msgs 
         for msg in OGM_ADV.ogm_msgs:
