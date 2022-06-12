@@ -12,23 +12,23 @@ import miscellaneous
 
 @dataclass
 class link_node_key:
-    local_id: int                       # local ID of the other node (LOCAL_ID_T)
-    dev_idx: int                        # interface index of the other node (DEVADV_IDX_T)
+    local_id: int = -1                  # local ID of the other node (LOCAL_ID_T)
+    dev_idx: int = -1                   # interface index of the other node (DEVADV_IDX_T)
 
 @dataclass
 class link_node:
-    key: link_node_key                  # holds information about the other node
+    key: link_node_key = link_node_key(-1,-1)
+                                        # holds information about the other node
+    link_ip: ipaddress.ip_address = ipaddress.ip_address('0:0:0:0')
+                                        # ip address of the link (IPX_T)
+    pkt_time_max: time = 0              # timeout value for packets (TIME_T)
+    hello_time_max: time = 0            # timeout value for the HELLO packet (TIME_T)
 
-    link_ip: ipaddress.ip_address       # ip address of the link (IPX_T)
+    hello_sqn_max: int = -1             # last sequence number (HELLO_SQN_T)
+
+    local: list = []                    # local node (local_node)
     
-    pkt_time_max: time                  # timeout value for packets (TIME_T)
-    hello_time_max: time                # timeout value for the HELLO packet (TIME_T)
-
-    hello_sqn_max: int                  # last sequence number (HELLO_SQN_T)
-
-    local: list                         # local node (local_node)
-    
-    linkdev_list: list                  # list of link_devs (list_head)
+    linkdev_list: list = []             # list of link_devs (list_head)
 
     def pkt_received(self, frame):
         self.pkt_time_max = time.localtime()
