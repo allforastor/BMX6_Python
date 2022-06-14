@@ -1,6 +1,7 @@
 from collections import deque
 import frames
-
+import time
+import test
 
 link_window = 4             # window size (48 default, 128 max)
 sample = deque(8*[0],8)     # 127-sized array record
@@ -39,3 +40,9 @@ def get_link_qual(window, size):
 
 link_qual = get_link_qual(sample, link_window)
 print(link_qual*100,"%")
+
+time.sleep(1)
+end_time = time.perf_counter()
+print(end_time)
+elapsed = (end_time - test.start_time) * 1000
+print(elapsed)

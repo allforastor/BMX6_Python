@@ -1,14 +1,16 @@
 from importlib.machinery import OPTIMIZED_BYTECODE_SUFFIXES
 import ipaddress
-import struct
 from sys import getsizeof
 import time
 from collections import deque
 from dataclasses import dataclass
+# import bmx
 import frames
 import miscellaneous
 
 # avl_tree link_tree
+
+print("here")
 
 @dataclass
 class link_node_key:
@@ -106,8 +108,8 @@ class dev_node:
 
 @dataclass
 class link_dev_key:
-    link: link_node                     # link that uses the interface
-    dev: dev_node                       # outgoing interface for transmiting (dev_node)
+    link: link_node = link_node()       # link that uses the interface
+    dev: dev_node = dev_node()          # outgoing interface for transmiting (dev_node)
 
 
 # avl_tree link_dev_tree
@@ -141,9 +143,8 @@ class lndev_probe_record:
             while sqn != self.hello_sqn_max + 1:
                 self.update_record(0)
             self.update_record(1)
-        self.hello_time_max = time.localtime()
-        current_time = time.strftime("%H:%M:%S", self.hello_time_max)
-        print(current_time)
+        self.hello_time_max = (time.perf_counter() - bmx.start_time) * 1000
+        print(self.hello_time_max)
 
     def get_link_qual(self):
         self.hello_sum = 0
@@ -151,36 +152,44 @@ class lndev_probe_record:
             self.hello_sum = self.hello_sum + self.hello_array[(len(self.hello_array) - 1) - x]
         self.hello_umetric = (self.hello_sum/self.link_window)*100
 
-# # lndev_probe_record testing functions
-# lndev = lndev_probe_record(hello_array = deque(8*[0], 8), link_window = 4)
-# print(lndev.hello_array)
-# lndev.update_record(1)
-# lndev.update_record(1)
-# print(lndev.hello_array)
-# lndev.HELLO_received(3)
-# print(lndev.hello_array)
-# lndev.get_link_qual()
-# print(lndev.hello_umetric)
+# lndev_probe_record testing functions
+lndev = lndev_probe_record(hello_array = deque(8*[0], 8), link_window = 4)
+print(lndev.hello_array)
+lndev.update_record(1)
+lndev.update_record(1)
+print(lndev.hello_array)
+lndev.HELLO_received(3)
+print(lndev.hello_array)
+lndev.get_link_qual()
+print(lndev.hello_umetric)
 
 @dataclass
 class link_dev_node:
-    list_n: list                        # list_node
-    key: link_dev_key                   # holds information about the link and device
+    list_n: list = []                   # list_node
+    key: link_dev_key = link_dev_key()  # holds information about the link and device
 
-    tx_probe_umetric: int               # RP_ADV.rp_127range (UMETRIC_T)
-    timeaware_tx_probe: int             # tx_probe_umetric which considers delay (UMETRIC_T) metrics.c
-    rx_probe_record: lndev_probe_record # record that is used for link metric calculation
-    timeaware_rx_probe: int             # rx_probe_record.hello_umetric which considers delay (UMETRIC_T) metrics.c
+    tx_probe_umetric: int = 0           # RP_ADV.rp_127range (UMETRIC_T)
+    timeaware_tx_probe: int = 0         # tx_probe_umetric which considers delay (UMETRIC_T) metrics.c
+    rx_probe_record: lndev_probe_record = lndev_probe_record()
+                                        # record that is used for link metric calculation
+    timeaware_rx_probe: int = 0         # rx_probe_record.hello_umetric which considers delay (UMETRIC_T) metrics.c
 
-    tx_task_lists: list                 # array of scheduled frames (list_head - array[FRAME_TYPE_ARRSZ])
-    link_adv_msg: int                   # frame counter of announced links (-1 if not announced)
-    pkt_time_max: time                  # timeout value for packets (TIME_T)
+    tx_task_lists: list = []            # array of scheduled frames (list_head - array[FRAME_TYPE_ARRSZ])
+    link_adv_msg: int = -1              # frame counter of announced links (-1 if not announced)
+    pkt_time_max: time = 0              # timeout value for packets (TIME_T)
 
     local_id = 0 # placeholder
 
     def __post_init__(self):
         rp_adv_time = link_dev_key.link.return_rp_adv_time(self.local_id);
         self.timeaware_tx_probe = self.tx_probe_umetric
+
+    def update_tx(self, umetric):
+        rp_adv_time = link_dev_key.link.return_rp_adv_time(self.local_id);
+        self.tx_probe_umetric = umetric
+        if(time.localtime() - rp_adv_time < 3000):       # TP_ADV_DELAY_TOLERANCE
+            self.timeaware_tx_probe = self.tx_probe_umetric 
+
 
 # avl_tree local_tree
 

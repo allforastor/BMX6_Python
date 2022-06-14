@@ -9,6 +9,9 @@ from datetime import datetime
 from dataclasses import dataclass
 import threading
 
+start_time = time.perf_counter()
+# print(start_time)
+
 @dataclass
 class packet_header:
     bmx_version: int
@@ -134,4 +137,4 @@ while True:
     print(datetime.now().time()) #show current time
 
     sendpacket(ip, port, msg) #sending packets
-    
+

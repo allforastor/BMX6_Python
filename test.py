@@ -1,6 +1,7 @@
 from ctypes import sizeof
 from dataclasses import dataclass
 import sys
+import time
 
 # @dataclass
 # class header:
@@ -59,6 +60,9 @@ import sys
 # print(rp)                   # prints the entire frame
 
 # pointer workaround
+
+start_time = time.perf_counter()
+print(start_time)
 
 @dataclass
 class big:
@@ -138,3 +142,9 @@ print_big(big_class)
 # print(type(x))
 # if(type(x) == int):
 #     print("Wow, it's an int!")
+
+# time.sleep(1)
+# end_time = time.perf_counter()
+# print(end_time)
+# elapsed = (end_time - start_time) * 1000
+# print(elapsed)
