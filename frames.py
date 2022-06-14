@@ -1,5 +1,7 @@
 import string
 from dataclasses import dataclass
+import socket
+import re, uuid
 
 @dataclass
 class header:
