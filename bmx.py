@@ -121,7 +121,7 @@ while True:
     frames2send = [frames.HELLO_ADV, frames.RP_ADV] #periodic messages to be  
                                                     #sent together with the packets
     
-    threading.Thread(target = recvpacket(ip, port)).start() #receiving packets
+    threading.Thread(target = listen(group, port)).start() #receiving packets
 
     #if in transient state
     while transient_state:
