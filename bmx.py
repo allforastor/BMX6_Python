@@ -28,32 +28,43 @@ class packet:
     header: packet_header
     frames: list
 
-#sending packets
-def sendpacket(ip, port, msg):
-    #creates socket
-    s = socket.socket(socket.AF_INET, #itnernet
-                                socket.SOCK_DGRAM) #udp
-    bmsg = pickle.dumps(msg) #converts the data into bytes
-    s.sendto(bmsg, (ip, port)) #sends the message
-    print(bmsg)
-
-
-#receiving packets
-def recvpacket(ip, port):
-    #creates socket
-    s = socket.socket(socket.AF_INET, #itnernet
-                                socket.SOCK_DGRAM) #udp
+#receive packet
+def listen(group, port):
+	# Look up multicast group address in name server 
+	addrinfo = socket.getaddrinfo(group, None)[0]
     
-    s.bind((ip,port))
+	# Create a socket
+	s = socket.socket(socket.AF_INET6, socket.SOCK_DGRAM)
 
-    #while True:
-    bdata, addr = s.recvfrom(1024) #receives the data 
+	# Allow multiple copies of this program on one machine
+	# (not strictly needed)
+	#s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
 
-    data = pickle.loads(bdata) #converts the data from bytes
+	# Bind it to the port
+	s.bind(('', port))
 
-    print(f"Received {data} from {addr}") #print(data)
+	group_bin = socket.inet_pton(socket.AF_INET6, addrinfo[4][0])
+	mreq = group_bin + struct.pack('@I', 0)
+	s.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_JOIN_GROUP, mreq)
 
-    return data
+	data, sender = s.recvfrom(1500)
+	while data[-1:] == '\0': data = data[:-1] # Strip trailing \0's
+	data = pickle.loads(data)
+	print (str(sender) + '  ' + repr(data))	
+
+#send packet
+def send(group, port, ttl, msg):
+	addrinfo = socket.getaddrinfo(group, None)[0]
+
+	s = socket.socket(socket.AF_INET6, socket.SOCK_DGRAM)
+
+	# Set Time-to-live (optional)
+	ttl_bin = struct.pack('@i', ttl)
+	s.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_MULTICAST_HOPS, ttl_bin)
+#	data = repr(time.time())
+	msg = pickle.dumps(msg)
+	s.sendto(msg + b'\0', (addrinfo[4][0], port))
+#	time.sleep(1)
 
 #adding request frames to frames 2 send list alongside with the unsolicited adv frames
 def send_REQ_frame(REQ_frame, frames2send):
@@ -96,8 +107,8 @@ def send_ADV_frames(recvd_frames, frames2send):
         
 #just test port values
 port = 8080
-ip = socket.gethostbyname(socket.gethostname())
-
+group = 'ff02::2'
+ttl = 1
 
 
 
@@ -114,7 +125,7 @@ while True:
 
     #if in transient state
     while transient_state:
-        recvd = recvpacket(ip, port) #stores the received packet to recvd variable
+        recvd = listen(group, port) #stores the received packet to recvd variable
 
         #if it knows every nodes, enter steady state
         if knowsAllNodes:
@@ -136,5 +147,5 @@ while True:
     time.sleep(0.5) #Hello and Rp sent every 0.5s
     print(datetime.now().time()) #show current time
 
-    sendpacket(ip, port, msg) #sending packets
+    send(group, port, ttl, msg) #sending packets
 
