@@ -81,8 +81,8 @@ def packet(packetheader, frameslist):
 
 #extracting the packet header and the frames
 def dissect_packet(packet):
-	packetheader = packet[:17] #since packet header is 17bytes in total 
-	frames = packet[17:]
+	packetheader = packet[:17] #extract the packet header since packet header is 17bytes in total 
+	frames = packet[17:] #extract the frames list
 	
 	packetheader = struct.unpack("!BBHHHIIB", packetheader)
 	frames = pickle.loads(frames)
