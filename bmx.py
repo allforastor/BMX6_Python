@@ -81,13 +81,18 @@ def packet(packetheader, frameslist):
 
 #extracting the packet header and the frames
 def dissect_packet(packet):
-	packetheader = packet[:17] #extract the packet header since packet header is 17bytes in total 
-	frames = packet[17:] #extract the frames list
+	packetheader = packet[:17] #since packet header is 17bytes in total 
+	frames = packet[17:]
 	
-	packetheader = struct.unpack("!BBHHHIIB", packetheader)
-	frames = pickle.loads(frames)
+	packetheader_raw = struct.unpack("!BBHHHIIB", packetheader)
+	frames_raw = pickle.loads(frames)
 
-	return packetheader, frames
+	packetheader = packet_header(packetheader_raw[0], packetheader_raw[1], packetheader_raw[2], 
+				packetheader_raw[3], packetheader_raw[4], packetheader_raw[5], 
+				packetheader_raw[6], packetheader_raw[7])
+	
+
+	return packetheader, frames_raw
 
 
 #adding request frames to frames 2 send list alongside with the unsolicited adv frames
