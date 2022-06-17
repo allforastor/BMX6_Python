@@ -38,18 +38,18 @@ class OGM_ADV:
     agg_sqn_no: int
     ogm_dest_arr_size: int
     ogm_dest_arr: list[int]
-    ogm_msgs: list[OGM_ADV_msg]
+    ogm_adv_msgs: list[OGM_ADV_msg]
         
     def best_ogm_msg(self) -> OGM_ADV_msg:          #comparison of OGM_ADV_msg inside OGM_ADV frame
         seq_no = []
         count = 0
         
-        for i in self.ogm_msgs:
+        for i in self.ogm_adv_msgs:
             seq_no.append(i.ogm_sqn_no)
 
         max_seq_no = max(seq_no)
 
-        for j in self.ogm_msgs:
+        for j in self.ogm_adv_msgs:
             if j.ogm_sqn_no != max_seq_no:
                 count += 1
                 continue
@@ -60,10 +60,14 @@ class OGM_ADV:
         return best
 
 @dataclass
-class OGM_ACK:
-    frm_header: header
+class OGM_ACK_msg:
     ogm_dest: int
-    agg_sqn_no: int
+    agg_sqn_no: int 
+    
+@dataclass
+class OGM_ACK:  # sent twice by default  # only ack nodes who requested ogm frame
+    frm_header: header
+    ogm_ack_msgs: list[OGM_ACK_msg]
 
 @dataclass
 class LINK_REQ:
