@@ -1,5 +1,5 @@
 from ctypes import sizeof
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 import sys
 import time
 
@@ -66,7 +66,7 @@ print(start_time)
 
 @dataclass
 class big:
-    smaller: list
+    smaller: list = field(default_factory=lambda:[])
     # smallest: list = []
 
 @dataclass
@@ -87,7 +87,7 @@ class small:
 #     def __post_init__(self):
 #         self.name = self.name+str(self.count)
 
-big_class = big([])
+big_class = big()
 small_class1 = small(big_class, 1)
 # s1 = s(big_class, 1)
 # s1 = s([], 1)
@@ -132,6 +132,9 @@ def print_big(big):
 # print("SMALL:\t", small_class3)
 # print("BIG:\t", big_class)
 print_big(big_class)
+print("SMALL:\t", small_class1)
+l = list([big_class, small_class1, small_class2])
+print(l)
 
 # print(sys.getsizeof(big_class))
 # print(sys.getsizeof(small_class1))
@@ -148,3 +151,15 @@ print_big(big_class)
 # print(end_time)
 # elapsed = (end_time - start_time) * 1000
 # print(elapsed)
+
+
+OGM_EXPONENT_OFFSET = 5
+OGM_EXPONENT_MAX = ((1 << 5) - 1)
+# 11111
+FM8_MANTISSA_BIT_SIZE = 8 - 5
+FM8_MANTISSA_MASK = ((1 << FM8_MANTISSA_BIT_SIZE) - 1)
+# 111
+UMETRIC_MAX = (((1) << (OGM_EXPONENT_OFFSET + OGM_EXPONENT_MAX)) + ((FM8_MANTISSA_MASK) << ((OGM_EXPONENT_OFFSET+OGM_EXPONENT_MAX)-FM8_MANTISSA_BIT_SIZE)))
+# [1 << 36] + [111 << 33]
+# 68719476736 + 60129542144
+print("UMETRIC_MAX: ",UMETRIC_MAX)

@@ -3,14 +3,14 @@ import ipaddress
 from sys import getsizeof
 import time
 from collections import deque
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 # import bmx
 import frames
 import miscellaneous
 
 # avl_tree link_tree
 
-print("here")
+start_time = time.perf_counter()
 
 @dataclass
 class link_node_key:
@@ -21,21 +21,23 @@ class link_node_key:
 class link_node:
     key: link_node_key = link_node_key(-1,-1)
                                         # holds information about the other node
-    link_ip: ipaddress.ip_address = ipaddress.ip_address('0:0:0:0')
+    link_ip: ipaddress.ip_address = ipaddress.ip_address('0.0.0.0')
                                         # ip address of the link (IPX_T)
     pkt_time_max: time = 0              # timeout value for packets (TIME_T)
     hello_time_max: time = 0            # timeout value for the HELLO packet (TIME_T)
 
     hello_sqn_max: int = -1             # last sequence number (HELLO_SQN_T)
 
-    local: list = []                    # local node (local_node)
+    local: list = field(default_factory=lambda:[])
+                                        # local node (local_node)
     
-    linkdev_list: list = []             # list of link_devs (list_head)
+    linkdev_list: list = field(default_factory=lambda:[])
+                                        # list of link_devs (list_head)
 
     def pkt_received(self, frame):
-        self.pkt_time_max = time.localtime()
+        self.pkt_time_max = (time.perf_counter() - start_time) * 1000           # bmx.start_time
         if(type(frame) == frames.HELLO_ADV):
-            self.hello_time_max = time.localtime()
+            self.hello_time_max = (time.perf_counter() - start_time) * 1000     # bmx.start_time
             # current_time = time.strftime("%H:%M:%S", self.hello_time_max)
             # print(current_time)
 
@@ -109,7 +111,7 @@ class dev_node:
 @dataclass
 class link_dev_key:
     link: link_node = link_node()       # link that uses the interface
-    dev: dev_node = dev_node()          # outgoing interface for transmiting (dev_node)
+    # dev: dev_node = dev_node()          # outgoing interface for transmiting (dev_node)
 
 
 # avl_tree link_dev_tree
@@ -135,37 +137,40 @@ class lndev_probe_record:
         self.hello_sqn_max = self.hello_sqn_max + 1
 
     def HELLO_received(self, sqn):
-        if self.hello_sqn_max == -1:
-            print("first received")
+        # if self.hello_sqn_max == -1:
+        #     print("first received")
         if sqn == self.hello_sqn_max:
             self.update_record(1)
         elif(sqn > self.hello_sqn_max):
             while sqn != self.hello_sqn_max + 1:
                 self.update_record(0)
             self.update_record(1)
-        self.hello_time_max = (time.perf_counter() - bmx.start_time) * 1000
+        self.hello_time_max = (time.perf_counter() - start_time) * 1000     # bmx.start_time
         print(self.hello_time_max)
 
     def get_link_qual(self):
         self.hello_sum = 0
-        for x in range(self.link_window):
-            self.hello_sum = self.hello_sum + self.hello_array[(len(self.hello_array) - 1) - x]
-        self.hello_umetric = (self.hello_sum/self.link_window)*100
+        for x in range(self.hello_array):
+            self.hello_sum = self.hello_sum + self.hello_array[x]
+        # for x in range(self.link_window):
+        #     self.hello_sum = self.hello_sum + self.hello_array[(len(self.hello_array) - 1) - x]
+        self.hello_umetric = (self.hello_sum/self.link_window) * 128849018880   # UMETRIC_MAX
 
-# lndev_probe_record testing functions
-lndev = lndev_probe_record(hello_array = deque(8*[0], 8), link_window = 4)
-print(lndev.hello_array)
-lndev.update_record(1)
-lndev.update_record(1)
-print(lndev.hello_array)
-lndev.HELLO_received(3)
-print(lndev.hello_array)
-lndev.get_link_qual()
-print(lndev.hello_umetric)
+# # lndev_probe_record testing functions
+# lndev = lndev_probe_record(hello_array = deque(8*[0], 8), link_window = 4)
+# print(lndev.hello_array)
+# lndev.update_record(1)
+# lndev.update_record(1)
+# print(lndev.hello_array)
+# lndev.HELLO_received(3)
+# print(lndev.hello_array)
+# lndev.get_link_qual()
+# print(lndev.hello_umetric)
 
 @dataclass
 class link_dev_node:
-    list_n: list = []                   # list_node
+    list_n: list = field(default_factory=lambda:[])
+                                        # list_node
     key: link_dev_key = link_dev_key()  # holds information about the link and device
 
     tx_probe_umetric: int = 0           # RP_ADV.rp_127range (UMETRIC_T)
@@ -174,22 +179,27 @@ class link_dev_node:
                                         # record that is used for link metric calculation
     timeaware_rx_probe: int = 0         # rx_probe_record.hello_umetric which considers delay (UMETRIC_T) metrics.c
 
-    tx_task_lists: list = []            # array of scheduled frames (list_head - array[FRAME_TYPE_ARRSZ])
+    tx_task_lists: list = field(default_factory=lambda:[])
+                                        # array of scheduled frames (list_head - array[FRAME_TYPE_ARRSZ])
     link_adv_msg: int = -1              # frame counter of announced links (-1 if not announced)
     pkt_time_max: time = 0              # timeout value for packets (TIME_T)
 
-    local_id = 0 # placeholder
-
-    def __post_init__(self):
-        rp_adv_time = link_dev_key.link.return_rp_adv_time(self.local_id);
-        self.timeaware_tx_probe = self.tx_probe_umetric
-
-    def update_tx(self, umetric):
-        rp_adv_time = link_dev_key.link.return_rp_adv_time(self.local_id);
+    def update_tx(self, umetric):       # every RP_ADV received
+        rp_adv_time = link_dev_key.link.return_rp_adv_time()
         self.tx_probe_umetric = umetric
-        if(time.localtime() - rp_adv_time < 3000):       # TP_ADV_DELAY_TOLERANCE
-            self.timeaware_tx_probe = self.tx_probe_umetric 
+        if(((time.perf_counter() - start_time) * 1000) - rp_adv_time < 3000):       # TP_ADV_DELAY_TOLERANCE (3s)
+            self.timeaware_tx_probe = self.tx_probe_umetric
+        elif(((time.perf_counter() - start_time) * 1000) - rp_adv_time < 20000):    # TP_ADV_DELAY_RANGE (20s)
+            self.timeaware_tx_probe = self.tx_probe_umetric * (20000 - ((time.perf_counter() - start_time) * 1000)/20000)
 
+    def update_rx(self):                # every HELLO_ADV received
+        hello_adv_time = self.rx_probe_record.hello_time_max
+        if(((time.perf_counter() - start_time) * 1000) - hello_adv_time < 3000):    # RP_ADV_DELAY_TOLERANCE (3s)
+            self.timeaware_rx_probe = self.rx_probe_record.hello_umetric
+        elif(((time.perf_counter() - start_time) * 1000) - hello_adv_time < 20000): # RP_ADV_DELAY_RANGE (20s)
+            self.timeaware_rx_probe = self.rx_probe_record.hello_umetric * (20000 - ((time.perf_counter() - start_time) * 1000)/20000)
+
+    
 
 # avl_tree local_tree
 
@@ -200,7 +210,7 @@ class local_node:
     best_rp_linkdev: link_dev_node
     best_tp_linkdev: link_dev_node
     best_linkdev: link_dev_node
-    neigh: list                         # neigh_node
+    # neigh: list                         # neigh_node
 
     packet_sqn: int                     # PKT_SQN_T
     packet_time: time                   # TIME_T
@@ -225,17 +235,31 @@ class local_node:
     rp_ogm_request_received: int        # IDM_T
     orig_routes: int                    # store originator
     
-    def set_iid_offset_for_ogm_msg(self, OGM_ADV, neighbor):   # initialize iid offset for msgs 
-        for msg in OGM_ADV.ogm_msgs:
-            if msg.iid_offset is None:  # ogm msg is in the originator, initialization
-                msg.iid_offset = 0
-                iid = msg.iid_offset
-            else:
-                neighiid = msg.iid_offset   # ogm msg contains iid of the originator
-                iid = neighbor.get_myIID4x_by_neighIID4x(neighiid)
-                msg.iid_offset = iid
+    def pkt_received(self, pkt):
+        self.packet_sqn = pkt.packet_header.pkt_sqn
+        self.packet_time = (time.perf_counter() - start_time) * 1000           # bmx.start_time
+    
+    def frame_received(self, frame):
+        if(type(frame) == frames.LINK_ADV):
+            self.link_adv_time = (time.perf_counter() - start_time) * 1000 # bmx.start_time
+        if(type(frame) == frames.DEV_ADV):
+            self.dev_adv_sqn = frame.dev_sqn_no
+            self.dev_adv_msgs = self.dev_adv_msgs + 1
+            # self.dev_adv =
+        if(type(frame) == frames.RP_ADV):
+            self.rp_adv_time = (time.perf_counter() - start_time) * 1000   # bmx.start_time
 
-        self.orig_routes = iid  # store iid value to local node
+    # def set_iid_offset_for_ogm_msg(self, OGM_ADV, neighbor):   # initialize iid offset for msgs 
+    #     for msg in OGM_ADV.ogm_msgs:
+    #         if msg.iid_offset is None:  # ogm msg is in the originator, initialization
+    #             msg.iid_offset = 0
+    #             iid = msg.iid_offset
+    #         else:
+    #             neighiid = msg.iid_offset   # ogm msg contains iid of the originator
+    #             iid = neighbor.get_myIID4x_by_neighIID4x(neighiid)
+    #             msg.iid_offset = iid
+
+    #     self.orig_routes = iid  # store iid value to local node
 
 
 @dataclass
