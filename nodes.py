@@ -3,7 +3,7 @@ import ipaddress
 from sys import getsizeof
 import time
 from collections import deque
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 # import bmx
 import frames
 import miscellaneous
@@ -240,12 +240,12 @@ class local_node:
 
 @dataclass
 class metric_record:
-    sqn_bit_mask: int                   # SQN_T (0 - 8191)
+    sqn_bit_mask: int = 0               # SQN_T (0 - 8191)
 
-    clr: int                            # SQN_T (0 - 8191)
-    set: int                            # SQN_T (0 - 8191)
+    clr: int = 0                        # SQN_T (0 - 8191)
+    set: int = 0                        # SQN_T (0 - 8191)
 
-    umetric: int                        # UMETRIC_T
+    umetric: int = 0                    # UMETRIC_T
 
 @dataclass
 class router_node:
@@ -400,14 +400,23 @@ class throw_node:
 
 @dataclass
 class ogm_aggreg_node:
-    list_n: list                        # list_node
+    #list_n: list = field(default_factory=list)  # list_node  # excluded for now, uncomment whenever relevant
 
-    ogm_advs: frames.OGM_ADV
+    ogm_advs: list[frames.OGM_ADV]
 
-    ogm_dest_field: list                # array[(OGM_DEST_ARRAY_BIT_SIZE/8)]
-    ogm_dest_bytes: int
+    ogm_dest_field: list = field(default_factory=list)   # array[(OGM_DEST_ARRAY_BIT_SIZE/8)]  # store dests where ogm frame is supposed to be sent
+    #ogm_dest_bytes: int                # removed from original
 
-    aggregated_msgs: int
+    aggregated_msgs: int = 0            # count total msgs in a frame
 
-    sqn: int                            # AGGREG_SQN_T (8 bits)
-    tx_attempt: int
+    sqn: int = 0  # AGGREG_SQN_T (8 bits)
+    #tx_attempt: int                    # removed from original
+
+    def set_aggr_sqn_no_ogm(self):  # set aggregated seq no for ogm frame
+        for frame in self.ogm_advs:
+            if frame.agg_sqn_no < 0:   # check if the frame has not yet been given a sqn number (-1 is default)
+                frame.agg_sqn_no = self.sqn
+                self.sqn += 1
+
+            else:
+                continue 
