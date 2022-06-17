@@ -32,7 +32,7 @@ class packet:
 def listen(group, port):
 	# Look up multicast group address in name server 
 	addrinfo = socket.getaddrinfo(group, None)[0]
-    
+	
 	# Create a socket
 	s = socket.socket(socket.AF_INET6, socket.SOCK_DGRAM)
 
@@ -49,10 +49,12 @@ def listen(group, port):
 
 	data, sender = s.recvfrom(1500)
 	while data[-1:] == '\0': data = data[:-1] # Strip trailing \0's
-	data = pickle.loads(data)
-	print (str(sender) + '  ' + repr(data))	
+	
+	return data
+	#data = pickle.loads(data)
+	#print (str(sender) + '  ' + repr(data))	
 
-#send packet
+#sending packet
 def send(group, port, ttl, msg):
 	addrinfo = socket.getaddrinfo(group, None)[0]
 
@@ -62,9 +64,31 @@ def send(group, port, ttl, msg):
 	ttl_bin = struct.pack('@i', ttl)
 	s.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_MULTICAST_HOPS, ttl_bin)
 #	data = repr(time.time())
-	msg = pickle.dumps(msg)
+#	msg = pickle.dumps(msg)
 	s.sendto(msg + b'\0', (addrinfo[4][0], port))
 #	time.sleep(1)
+
+
+def packet(packetheader, frameslist):
+	packetheader = struct.pack("!BBHHHIIB", packetheader.bmx_version, packetheader.reserved, 
+						packetheader.pkt_len, packetheader.transmitterIID, packetheader.link_adv_sqn, 
+						packetheader.pkt_sqn, packetheader.local_id, packetheader.dev_idx)
+
+	frames = pickle.dumps(frameslist)
+
+	return packetheader + frames
+
+
+#extracting the packet header and the frames
+def dissect_packet(packet):
+	packetheader = packet[:17] #since packet header is 17bytes in total 
+	frames = packet[17:]
+	
+	packetheader = struct.unpack("!BBHHHIIB", packetheader)
+	frames = pickle.loads(frames)
+
+	return packetheader, frames
+
 
 #adding request frames to frames 2 send list alongside with the unsolicited adv frames
 def send_REQ_frame(REQ_frame, frames2send):
