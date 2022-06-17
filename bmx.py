@@ -28,32 +28,72 @@ class packet:
     header: packet_header
     frames: list
 
-#sending packets
-def sendpacket(ip, port, msg):
-    #creates socket
-    s = socket.socket(socket.AF_INET, #itnernet
-                                socket.SOCK_DGRAM) #udp
-    bmsg = pickle.dumps(msg) #converts the data into bytes
-    s.sendto(bmsg, (ip, port)) #sends the message
-    print(bmsg)
+#receive packet
+def listen(group, port):
+	# Look up multicast group address in name server 
+	addrinfo = socket.getaddrinfo(group, None)[0]
+	
+	# Create a socket
+	s = socket.socket(socket.AF_INET6, socket.SOCK_DGRAM)
+
+	# Allow multiple copies of this program on one machine
+	# (not strictly needed)
+	#s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+
+	# Bind it to the port
+	s.bind(('', port))
+
+	group_bin = socket.inet_pton(socket.AF_INET6, addrinfo[4][0])
+	mreq = group_bin + struct.pack('@I', 0)
+	s.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_JOIN_GROUP, mreq)
+
+	data, sender = s.recvfrom(1500)
+	while data[-1:] == '\0': data = data[:-1] # Strip trailing \0's
+	
+	return data
+	#data = pickle.loads(data)
+	#print (str(sender) + '  ' + repr(data))	
+
+#sending packet
+def send(group, port, ttl, msg):
+	addrinfo = socket.getaddrinfo(group, None)[0]
+
+	s = socket.socket(socket.AF_INET6, socket.SOCK_DGRAM)
+
+	# Set Time-to-live (optional)
+	ttl_bin = struct.pack('@i', ttl)
+	s.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_MULTICAST_HOPS, ttl_bin)
+#	data = repr(time.time())
+#	msg = pickle.dumps(msg)
+	s.sendto(msg + b'\0', (addrinfo[4][0], port))
+#	time.sleep(1)
 
 
-#receiving packets
-def recvpacket(ip, port):
-    #creates socket
-    s = socket.socket(socket.AF_INET, #itnernet
-                                socket.SOCK_DGRAM) #udp
-    
-    s.bind((ip,port))
+def packet(packetheader, frameslist):
+	packetheader = struct.pack("!BBHHHIIB", packetheader.bmx_version, packetheader.reserved, 
+						packetheader.pkt_len, packetheader.transmitterIID, packetheader.link_adv_sqn, 
+						packetheader.pkt_sqn, packetheader.local_id, packetheader.dev_idx)
 
-    #while True:
-    bdata, addr = s.recvfrom(1024) #receives the data 
+	frames = pickle.dumps(frameslist)
 
-    data = pickle.loads(bdata) #converts the data from bytes
+	return packetheader + frames
 
-    print(f"Received {data} from {addr}") #print(data)
 
-    return data
+#extracting the packet header and the frames
+def dissect_packet(packet):
+	packetheader = packet[:17] #since packet header is 17bytes in total 
+	frames = packet[17:]
+	
+	packetheader_raw = struct.unpack("!BBHHHIIB", packetheader)
+	frames_raw = pickle.loads(frames)
+
+	packetheader = packet_header(packetheader_raw[0], packetheader_raw[1], packetheader_raw[2], 
+				packetheader_raw[3], packetheader_raw[4], packetheader_raw[5], 
+				packetheader_raw[6], packetheader_raw[7])
+	
+
+	return packetheader, frames_raw
+
 
 #adding request frames to frames 2 send list alongside with the unsolicited adv frames
 def send_REQ_frame(REQ_frame, frames2send):
@@ -96,8 +136,8 @@ def send_ADV_frames(recvd_frames, frames2send):
         
 #just test port values
 port = 8080
-ip = socket.gethostbyname(socket.gethostname())
-
+group = 'ff02::2'
+ttl = 1
 
 
 
@@ -110,11 +150,11 @@ while True:
     frames2send = [frames.HELLO_ADV, frames.RP_ADV] #periodic messages to be  
                                                     #sent together with the packets
     
-    threading.Thread(target = recvpacket(ip, port)).start() #receiving packets
+    threading.Thread(target = listen(group, port)).start() #receiving packets
 
     #if in transient state
     while transient_state:
-        recvd = recvpacket(ip, port) #stores the received packet to recvd variable
+        recvd = listen(group, port) #stores the received packet to recvd variable
 
         #if it knows every nodes, enter steady state
         if knowsAllNodes:
@@ -136,5 +176,5 @@ while True:
     time.sleep(0.5) #Hello and Rp sent every 0.5s
     print(datetime.now().time()) #show current time
 
-    sendpacket(ip, port, msg) #sending packets
+    send(group, port, ttl, msg) #sending packets
 
