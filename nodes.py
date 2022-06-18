@@ -432,12 +432,20 @@ class ogm_aggreg_node:
 
     sqn: int = 0  # AGGREG_SQN_T (8 bits)
     #tx_attempt: int                    # removed from original
+    
+    def set_sqn_no_ogmframes_and_ogmmsgs(self):  # set aggregated seq no for ogm frame and sqn_no for msgs 
+        for frame in self.ogm_advs:     # n^2 time complexity
+            for msgs in frame.ogm_adv_msgs:
+                if msgs.ogm_sqn_no < 0:     # check if the msg has not yet been given a sqn number (-1 is default)
+                    msgs.ogm_sqn_no = self.aggregated_msgs_sqn_no
+                    self.aggregated_msgs_sqn_no += 1
 
-    def set_aggr_sqn_no_ogm(self):  # set aggregated seq no for ogm frame
-        for frame in self.ogm_advs:
+                else:
+                    continue    # if msgs already given a sqn number, ignore
+
             if frame.agg_sqn_no < 0:   # check if the frame has not yet been given a sqn number (-1 is default)
                 frame.agg_sqn_no = self.sqn
                 self.sqn += 1
 
             else:
-                continue 
+                continue    # # if frame already given a sqn number, ignore
