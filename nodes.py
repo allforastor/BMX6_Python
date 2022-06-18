@@ -428,12 +428,12 @@ class ogm_aggreg_node:
     ogm_dest_field: list = field(default_factory=list)   # array[(OGM_DEST_ARRAY_BIT_SIZE/8)]  # store dests where ogm frame is supposed to be sent
     #ogm_dest_bytes: int                # removed from original
 
-    aggregated_msgs: int = 0            # count total msgs in a frame
+    aggregated_msgs_sqn_no: int = 0    # originally aggregated_msgs # deviated from original
 
     sqn: int = 0  # AGGREG_SQN_T (8 bits)
     #tx_attempt: int                    # removed from original
     
-    def set_sqn_no_ogmframes_and_ogmmsgs(self):  # set aggregated seq no for ogm frame and sqn_no for msgs 
+    def set_sqn_no_ogmframes_and_msgs(self):  # set aggregated seq no for ogm frame and sqn_no for msgs 
         for frame in self.ogm_advs:     # n^2 time complexity
             for msgs in frame.ogm_adv_msgs:
                 if msgs.ogm_sqn_no < 0:     # check if the msg has not yet been given a sqn number (-1 is default)
