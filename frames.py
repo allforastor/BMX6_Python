@@ -13,12 +13,12 @@ class header:
 @dataclass
 class HELLO_ADV:
     frm_header: header
-    HELLO_sqn_no: int
+    HELLO_sqn_no: int                   # sqn used for link metric calculation
 
 @dataclass
 class RP_ADV_msg:
-    rp_127range: int
-    ogm_req: int
+    rp_127range: int                    # report of the number of HELLO_ADV frames received
+    ogm_req: int                        # set to 1 if it wants to receive OGMs from the RP_ADV receiver
 
 @dataclass
 class RP_ADV:
@@ -72,18 +72,18 @@ class OGM_ACK:  # sent twice by default  # only ack nodes who requested ogm fram
 @dataclass
 class LINK_REQ:
     frm_header: header
-    dest_local_id: int
+    dest_local_id: int                  # indicates which neighbor has to answer the LINK_REQ
 
 @dataclass
 class LINK_ADV_msg:
-    trans_dev_index: int
-    peer_dev_index: int
-    peer_local_id: int
+    trans_dev_index: int                # device index of the sending node
+    peer_dev_index: int                 # device index of the receiving node
+    peer_local_id: int                  # local id of the receiving node
 
 @dataclass
 class LINK_ADV:
     frm_header: header
-    dev_sqn_no_ref: int
+    dev_sqn_no_ref: int                 # sqn of the DEV_ADV related to this LINK_ADV
     link_msgs: list[LINK_ADV_msg]
 
 @dataclass

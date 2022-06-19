@@ -15,50 +15,80 @@ start_time = time.perf_counter()
 
 @dataclass
 class local_node:
-    local_id: int = -1                  # LOCAL_ID_T
-    link_tree: list = field(default_factory=lambda:[])                       # avl_tree
-    best_rp_linkdev: list = field(default_factory=lambda:[])                 # link_dev_node
-    best_tp_linkdev: list = field(default_factory=lambda:[])                 # link_dev_node
-    best_linkdev: list = field(default_factory=lambda:[])                    # link_dev_node
-    neigh: list = field(default_factory=lambda:[])                           # neigh_node
+    local_id: int = -1                                                          # LOCAL_ID_T
+    link_tree: list = field(default_factory=lambda:[])                          # avl_tree
+    best_rp_linkdev: list = field(default_factory=lambda:[])                        # link_dev_node
+    best_tp_linkdev: list = field(default_factory=lambda:[])                        # link_dev_node
+    best_linkdev: list = field(default_factory=lambda:[])                           # link_dev_node
+    neigh: list = field(default_factory=lambda:[])                                  # neigh_node
 
-    packet_sqn: int = -1                # PKT_SQN_T
-    packet_time: time = 0               # TIME_T
-    packet_link_sqn_ref: int = -1       # LINKADV_SQN_T (0 - 255)(frames.LINK_ADV.dev_sqn_no_ref)
+    packet_sqn: int = -1                                                        # PKT_SQN_T
+    packet_time: time = 0                                                       # TIME_T
+    packet_link_sqn_ref: int = -1                                               # LINKADV_SQN_T (0 - 255)(frames.LINK_ADV.dev_sqn_no_ref)
 
     # from the latest LINK_ADV
-    link_adv_sqn: int = -1              # sqn of the latest LINK_ADV (LINKADV_SQN_T (0 - 255)(frames.LINK_ADV.dev_sqn_no_ref)
-    link_adv_time: time = 0             # time of the latest LINK_ADV frame (TIME_T)
-    link_adv_msgs: int = -1             #
-    link_adv_msg_for_me: int = -1
-    link_adv_msg_for_him: int = -1
-    link_adv: frames.LINK_ADV = None    # msg_link_adv
-    link_adv_dev_sqn_ref: int = -1      # DEVADV_SQN_T (0 - 255)(frames.DEV_ADV.dev_sqn_np)
+    link_adv_sqn: int = -1                                                      # sqn of the latest LINK_ADV (LINKADV_SQN_T (0 - 255)(frames.LINK_ADV.dev_sqn_no_ref)
+    link_adv_time: time = 0                                                     # time of the latest LINK_ADV frame (TIME_T)
+    link_adv_msgs: int = 0                                                      # number of msgs in the LINK_ADV frame
+    link_adv_msg_for_me: int = 0                                                # number of msgs for this node
+    link_adv_msg_for_him: int = 0                                               # number of msgs for other nodes
+    link_adv: list = field(default_factory=lambda:[])                           # msg_link_adv (frames.LINK_ADV)
+    link_adv_dev_sqn_ref: int = -1                                              # DEVADV_SQN_T (0 - 255)(frames.DEV_ADV.dev_sqn_np)
 
     # from the latest DEV_ADV
-    dev_adv_sqn: int = -1               # sqn of the latest DEV_ADV (DEVADV_SQN_T (0 - 255)(frames.DEV_ADV.dev_sqn_np))
-    dev_adv_msgs: int = -1
-    dev_adv: frames.DEV_ADV = None      # msg_dev_adv
+    dev_adv_sqn: int = -1                                                       # sqn of the latest DEV_ADV (DEVADV_SQN_T (0 - 255)(frames.DEV_ADV.dev_sqn_np))
+    dev_adv_msgs: int = 0                                                       # number of msgs in the DEV_ADV frame
+    dev_adv: list = field(default_factory=lambda:[])                            # msg_dev_adv (frames.DEV_ADV)
 
     # from the latest RP_ADV
-    rp_adv_time: time = 0               # time of the latest RP_ADV frame (TIME_T)
-    rp_ogm_request_received: int = -1   # IDM_T
-    orig_routes: int = -1               # store originator
+    rp_adv_time: time = 0                                                       # time of the latest RP_ADV frame (TIME_T)
+    rp_ogm_request_received: int = -1                                               # IDM_T
+    orig_routes: int = -1                                                           # store originator
     
     def pkt_received(self, packet_header):
         self.packet_sqn = packet_header.pkt_sqn
-        self.packet_time = (time.perf_counter() - start_time) * 1000           # bmx.start_time
+        self.packet_time = (time.perf_counter() - start_time) * 1000            # bmx.start_time
         self.packet_link_sqn_ref = packet_header.link_adv_sqn
 
     def frame_received(self, frame):
-        if(type(frame) == frames.LINK_ADV):
-            self.link_adv_time = (time.perf_counter() - start_time) * 1000 # bmx.start_time
+        if(type(frame) == frames.LINK_ADV): #TO DO: transfer to runtime
+            # LOCAL_NODE
+            self.link_adv_sqn = self.packet_link_sqn_ref
+            self.link_adv_time = (time.perf_counter() - start_time) * 1000      # bmx.start_time
+            self.link_adv_msgs = 0
+            self.link_adv_msg_for_me = 0
+            self.link_adv_msg_for_him = 0
+            self.link_adv.clear()
+            for x in frame.link_msgs:
+                self.link_adv_msgs = self.link_adv_msgs + 1
+                if(x.peer_local_id == self.local_id):
+                    self.link_adv_msg_for_me = self.link_adv_msg_for_me + 1
+                else:
+                    self.link_adv_msg_for_him = self.link_adv_msg_for_him + 1
+                self.link_adv.append(x)
+            self.link_adv_dev_sqn_ref = frame.dev_sqn_no_ref
+
+            # LINK_NODE, LINK_NODE_KEY
+            for x in self.link_adv_msgs:
+                link_key = link_node_key(x.peer_local_id, x.peer_dev_index)
+                self.link_tree.append(link_node(local_node = self, key = link_key)) # unsure where to put
         if(type(frame) == frames.DEV_ADV):
             self.dev_adv_sqn = frame.dev_sqn_no
-            self.dev_adv_msgs = self.dev_adv_msgs + 1
-            # self.dev_adv =
+            self.dev_adv_msgs = 0
+            self.dev_adv.clear()
+            for x in frame.dev_msgs:
+                self.dev_adv_msgs = self.dev_adv_msgs + 1
+                self.dev_adv.append(x)  
         if(type(frame) == frames.RP_ADV):
-            self.rp_adv_time = (time.perf_counter() - start_time) * 1000   # bmx.start_time
+            self.rp_adv_time = (time.perf_counter() - start_time) * 1000        # bmx.start_time
+            req = 0
+            for x in frame.rp_msgs:
+                req = req + x.ogm_req
+            if(req > 0):    # check if neighbor as well
+                self.rp_ogm_request_received = 1
+            else:
+                self.rp_ogm_request_received = 0
+            self.orig_routes = 0
 
     # def set_iid_offset_for_ogm_msg(self, OGM_ADV, neighbor):   # initialize iid offset for msgs 
     #     for msg in OGM_ADV.ogm_msgs:
@@ -78,39 +108,42 @@ class local_node:
 
 @dataclass
 class link_node_key:
-    local_id: int = -1                  # local ID of the other node (LOCAL_ID_T)
-    dev_idx: int = -1                   # interface index of the other node (DEVADV_IDX_T)
+    local_id: int = -1                                                          # local ID of the other node (LOCAL_ID_T)
+    dev_idx: int = -1                                                           # interface index of the other node (DEVADV_IDX_T)
 
 @dataclass
 class link_node:
-    local: local_node                   # local node connected to this link
+    local: local_node                                                               # local node connected to this link
 
-    key: link_node_key = link_node_key(-1,-1)                           # holds information about the other node
-    link_ip: ipaddress.ip_address = ipaddress.ip_address('0.0.0.0')     # ip address of the link (IPX_T)
-    pkt_time_max: time = 0              # timeout value for packets (TIME_T)
-    hello_time_max: time = 0            # timeout value for the HELLO packet (TIME_T)
+    key: link_node_key = link_node_key(-1,-1)                                   # holds information about the other node
+    link_ip: ipaddress.ip_address = ipaddress.ip_address('0.0.0.0')                 # ip address of the link (IPX_T)
+    pkt_time_max: time = 0                                                          # timeout value for packets (TIME_T)
+    hello_time_max: time = 0                                                        # timeout value for the HELLO packet (TIME_T)
 
-    hello_sqn_max: int = -1             # last sequence number (HELLO_SQN_T)
+    hello_sqn_max: int = -1                                                         # last sequence number (HELLO_SQN_T)
     
-    linkdev_list: list = field(default_factory=lambda:[])               # list of link_devs (list_head)
+    linkdev_list: list = field(default_factory=lambda:[])                           # list of link_devs (list_head)
 
     def pkt_received(self, frame):
-        self.pkt_time_max = (time.perf_counter() - start_time) * 1000           # bmx.start_time
+        self.pkt_time_max = (time.perf_counter() - start_time) * 1000               # bmx.start_time
         if(type(frame) == frames.HELLO_ADV):
-            self.hello_time_max = (time.perf_counter() - start_time) * 1000     # bmx.start_time
+            self.hello_time_max = (time.perf_counter() - start_time) * 1000         # bmx.start_time
             # current_time = time.strftime("%H:%M:%S", self.hello_time_max)
             # print(current_time)
+
+    def LINK_ADV_msg_received(self, link_adv_msg):
+        self.key = link_node_key(link_adv_msg.peer_local_id, link_adv_msg.peer_dev_index)
 
 
 @dataclass
 class dev_node:
-    if_link: int                # if_link_node
-    if_llocal_addr: int         # if_addr_node
-    if_global_addr: int         # if_addr_node
+    if_link: int                                                                # if_link_node
+    if_llocal_addr: int                                                         # if_addr_node
+    if_global_addr: int                                                         # if_addr_node
 
     hard_conf_changed: int
     soft_conf_changed: int
-    autoIP6configured: int      # net_key
+    autoIP6configured: int                                                      # net_key
     autoIP6ifindex: int
     active: int
     activate_again: int
@@ -119,29 +152,29 @@ class dev_node:
 
     dev_adv_msg: int
 
-    ifname_label: int           # IFNAME_T
-    ifname_device: int          # IFNAME_T
+    ifname_label: int                                                           # IFNAME_T
+    ifname_device: int                                                          # IFNAME_T
 
     # dummy_lndev: link_dev_node
     
-    llip_key: int               # dev_ip_key
-    mac: int                    # MAC_T
+    llip_key: int                                                               # dev_ip_key
+    mac: int                                                                    # MAC_T
 
-    ip_llocal_str: str          # array[IPX_STR_LEN]
-    ip_global_str: str          # array[IPX_STR_LEN]
-    ip_brc_str: str             # array[IPX_STR_LEN]
+    ip_llocal_str: str                                                          # array[IPX_STR_LEN]
+    ip_global_str: str                                                          # array[IPX_STR_LEN]
+    ip_brc_str: str                                                             # array[IPX_STR_LEN]
 
-    llocal_unicast_addr: int    # sockaddr_storage
-    tx_netwbrc_addr: int        # sockaddr_storage
+    llocal_unicast_addr: int                                                    # sockaddr_storage
+    tx_netwbrc_addr: int                                                        # sockaddr_storage
 
     unicast_sock: int
     rx_mcast_sock: int
     rx_fullbrc_sock: int
 
-    link_hello_sqn: int         # HELLO_SQN_T
+    link_hello_sqn: int                                                         # HELLO_SQN_T
 
-    tx_task_lists: list         # array of scheduled frames (list_head - array[FRAME_TYPE_ARRSZ])
-    tx_task_interval_tree: int  # avl_tree
+    tx_task_lists: list                                                         # array of scheduled frames (list_head - array[FRAME_TYPE_ARRSZ])
+    tx_task_interval_tree: int                                                  # avl_tree
 
     announce: int
 
@@ -151,36 +184,36 @@ class dev_node:
     channel_conf: int
     channel: int
 
-    umetric_min_conf: int       # UMETRIC_T
-    umetric_min: int            # UMETRIC_T
+    umetric_min_conf: int                                                       # UMETRIC_T
+    umetric_min: int                                                            # UMETRIC_T
 
-    umetric_max_conf: int       # UMETRIC_T
-    umetric_max: int            # UMETRIC_T
+    umetric_max_conf: int                                                       # UMETRIC_T
+    umetric_max: int                                                            # UMETRIC_T
 
-    global_prefix_conf_: int    # net_key
-    llocal_prefix_conf_: int    # net_key
+    global_prefix_conf_: int                                                    # net_key
+    llocal_prefix_conf_: int                                                    # net_key
     
-    plugin_data: list           # void*
+    plugin_data: list                                                           # void*
 
 
 @dataclass
 class link_dev_key:
-    link: link_node = link_node()       # link that uses the interface
-    # dev: dev_node = dev_node()          # outgoing interface for transmiting (dev_node)
+    link: link_node = link_node()                                               # link that uses the interface
+    # dev: dev_node = dev_node()                                                # outgoing interface for transmiting (dev_node)
 
 
 # avl_tree link_dev_tree
 
 @dataclass
 class lndev_probe_record:
-    hello_sqn_max: int = -1             # last sequence number (HELLO_SQN_T)
+    hello_sqn_max: int = -1                                                     # last sequence number (HELLO_SQN_T)
 
     hello_array: deque = deque(128*[0], 128)
-    hello_sum: int = 0                  # number of HELLO_ADVs received within the window
-    hello_umetric: int = 0              # UMETRIC_T
-    hello_time_max: time = 0            # timeout value for the HELLO packet (TIME_T)
+    hello_sum: int = 0                                                          # number of HELLO_ADVs received within the window
+    hello_umetric: int = 0                                                      # UMETRIC_T
+    hello_time_max: time = 0                                                    # timeout value for the HELLO packet (TIME_T)
 
-    link_window: int = 48               # sliding window size (48 default, 128 max)
+    link_window: int = 48                                                       # sliding window size (48 default, 128 max)
 
     # TO DO: make a function that appends 0 when nothing is received after some time
 
@@ -200,7 +233,7 @@ class lndev_probe_record:
             while sqn != self.hello_sqn_max + 1:
                 self.update_record(0)
             self.update_record(1)
-        self.hello_time_max = (time.perf_counter() - start_time) * 1000     # bmx.start_time
+        self.hello_time_max = (time.perf_counter() - start_time) * 1000         # bmx.start_time
         print(self.hello_time_max)
 
     def get_link_qual(self):
@@ -224,22 +257,19 @@ class lndev_probe_record:
 
 @dataclass
 class link_dev_node:
-    list_n: list = field(default_factory=lambda:[])
-                                        # list_node
-    key: link_dev_key = link_dev_key()  # holds information about the link and device
+    list_n: list = field(default_factory=lambda:[])                             # list_node
+    key: link_dev_key = link_dev_key()                                          # holds information about the link and device
 
-    tx_probe_umetric: int = 0           # RP_ADV.rp_127range (UMETRIC_T)
-    timeaware_tx_probe: int = 0         # tx_probe_umetric which considers delay (UMETRIC_T) metrics.c
-    rx_probe_record: lndev_probe_record = lndev_probe_record()
-                                        # record that is used for link metric calculation
-    timeaware_rx_probe: int = 0         # rx_probe_record.hello_umetric which considers delay (UMETRIC_T) metrics.c
+    tx_probe_umetric: int = 0                                                   # RP_ADV.rp_127range (UMETRIC_T)
+    timeaware_tx_probe: int = 0                                                 # tx_probe_umetric which considers delay (UMETRIC_T) metrics.c
+    rx_probe_record: lndev_probe_record = lndev_probe_record()                  # record that is used for link metric calculation
+    timeaware_rx_probe: int = 0                                                 # rx_probe_record.hello_umetric which considers delay (UMETRIC_T) metrics.c
 
-    tx_task_lists: list = field(default_factory=lambda:[])
-                                        # array of scheduled frames (list_head - array[FRAME_TYPE_ARRSZ])
-    link_adv_msg: int = -1              # frame counter of announced links (-1 if not announced)
-    pkt_time_max: time = 0              # timeout value for packets (TIME_T)
+    tx_task_lists: list = field(default_factory=lambda:[])                      # array of scheduled frames (list_head - array[FRAME_TYPE_ARRSZ])
+    link_adv_msg: int = -1                                                      # frame counter of announced links (-1 if not announced)
+    pkt_time_max: time = 0                                                      # timeout value for packets (TIME_T)
 
-    def update_tx(self, umetric):       # every RP_ADV received
+    def update_tx(self, umetric):                                               # every RP_ADV received
         rp_adv_time = link_dev_key.link.local.rp_adv_time
         self.tx_probe_umetric = umetric
         if(((time.perf_counter() - start_time) * 1000) - rp_adv_time < 3000):       # TP_ADV_DELAY_TOLERANCE (3s)
@@ -247,7 +277,7 @@ class link_dev_node:
         elif(((time.perf_counter() - start_time) * 1000) - rp_adv_time < 20000):    # TP_ADV_DELAY_RANGE (20s)
             self.timeaware_tx_probe = self.tx_probe_umetric * (20000 - ((time.perf_counter() - start_time) * 1000)/20000)
 
-    def update_rx(self):                # every HELLO_ADV received
+    def update_rx(self):                                                        # every HELLO_ADV received
         hello_adv_time = self.rx_probe_record.hello_time_max
         if(((time.perf_counter() - start_time) * 1000) - hello_adv_time < 3000):    # RP_ADV_DELAY_TOLERANCE (3s)
             self.timeaware_rx_probe = self.rx_probe_record.hello_umetric
