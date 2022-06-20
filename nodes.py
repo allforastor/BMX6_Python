@@ -50,45 +50,47 @@ class local_node:
         self.packet_time = (time.perf_counter() - start_time) * 1000            # bmx.start_time
         self.packet_link_sqn_ref = packet_header.link_adv_sqn
 
-    def frame_received(self, frame):
-        if(type(frame) == frames.LINK_ADV): #TO DO: transfer to runtime
-            # LOCAL_NODE
-            self.link_adv_sqn = self.packet_link_sqn_ref
-            self.link_adv_time = (time.perf_counter() - start_time) * 1000      # bmx.start_time
-            self.link_adv_msgs = 0
-            self.link_adv_msg_for_me = 0
-            self.link_adv_msg_for_him = 0
-            self.link_adv.clear()
-            for x in frame.link_msgs:
-                self.link_adv_msgs = self.link_adv_msgs + 1
-                if(x.peer_local_id == self.local_id):
-                    self.link_adv_msg_for_me = self.link_adv_msg_for_me + 1
-                else:
-                    self.link_adv_msg_for_him = self.link_adv_msg_for_him + 1
-                self.link_adv.append(x)
-            self.link_adv_dev_sqn_ref = frame.dev_sqn_no_ref
+        for ln in self.link_tree:
+            ln.pkt_update()
 
-            # LINK_NODE, LINK_NODE_KEY
-            for x in self.link_adv_msgs:
-                link_key = link_node_key(x.peer_local_id, x.peer_dev_index)
-                self.link_tree.append(link_node(local_node = self, key = link_key)) # unsure where to put
-        if(type(frame) == frames.DEV_ADV):
-            self.dev_adv_sqn = frame.dev_sqn_no
-            self.dev_adv_msgs = 0
-            self.dev_adv.clear()
-            for x in frame.dev_msgs:
-                self.dev_adv_msgs = self.dev_adv_msgs + 1
-                self.dev_adv.append(x)  
-        if(type(frame) == frames.RP_ADV):
-            self.rp_adv_time = (time.perf_counter() - start_time) * 1000        # bmx.start_time
-            req = 0
-            for x in frame.rp_msgs:
-                req = req + x.ogm_req
-            if(req > 0):    # check if neighbor as well
-                self.rp_ogm_request_received = 1
+    def link_adv_received(self, frame):
+        # LOCAL_NODE
+        self.link_adv_sqn = self.packet_link_sqn_ref
+        self.link_adv_time = (time.perf_counter() - start_time) * 1000      # bmx.start_time
+        self.link_adv_msgs = 0
+        self.link_adv_msg_for_me = 0
+        self.link_adv_msg_for_him = 0
+        self.link_adv.clear()
+        for x in frame.link_msgs:
+            self.link_adv_msgs = self.link_adv_msgs + 1
+            if(x.peer_local_id == self.local_id):
+                self.link_adv_msg_for_me = self.link_adv_msg_for_me + 1
             else:
-                self.rp_ogm_request_received = 0
-            self.orig_routes = 0
+                self.link_adv_msg_for_him = self.link_adv_msg_for_him + 1
+            self.link_adv.append(x)
+        self.link_adv_dev_sqn_ref = frame.dev_sqn_no_ref
+
+        # LINK_NODE, LINK_NODE_KEY
+        
+        
+    def dev_adv_received(self, frame):
+        self.dev_adv_sqn = frame.dev_sqn_no
+        self.dev_adv_msgs = 0
+        self.dev_adv.clear()
+        for x in frame.dev_msgs:
+            self.dev_adv_msgs = self.dev_adv_msgs + 1
+            self.dev_adv.append(x)  
+        
+    def rp_adv_received(self, frame):
+        self.rp_adv_time = (time.perf_counter() - start_time) * 1000        # bmx.start_time
+        req = 0
+        for x in frame.rp_msgs:
+            req = req + x.ogm_req
+        if(req > 0):    # check if neighbor as well
+            self.rp_ogm_request_received = 1
+        else:
+            self.rp_ogm_request_received = 0
+        self.orig_routes = 0
 
     # def set_iid_offset_for_ogm_msg(self, OGM_ADV, neighbor):   # initialize iid offset for msgs 
     #     for msg in OGM_ADV.ogm_msgs:
@@ -113,26 +115,25 @@ class link_node_key:
 
 @dataclass
 class link_node:
-    local: local_node                                                               # local node connected to this link
+    local: local_node                                                           # local node connected to this link
 
     key: link_node_key = link_node_key(-1,-1)                                   # holds information about the other node
     link_ip: ipaddress.ip_address = ipaddress.ip_address('0.0.0.0')                 # ip address of the link (IPX_T)
-    pkt_time_max: time = 0                                                          # timeout value for packets (TIME_T)
-    hello_time_max: time = 0                                                        # timeout value for the HELLO packet (TIME_T)
+    pkt_time_max: time = 0                                                      # timeout value for packets (TIME_T)
+    hello_time_max: time = 0                                                    # timeout value for the HELLO packet (TIME_T)
 
-    hello_sqn_max: int = -1                                                         # last sequence number (HELLO_SQN_T)
+    hello_sqn_max: int = -1                                                     # last sequence number (HELLO_SQN_T)
     
     linkdev_list: list = field(default_factory=lambda:[])                           # list of link_devs (list_head)
 
-    def pkt_received(self, frame):
-        self.pkt_time_max = (time.perf_counter() - start_time) * 1000               # bmx.start_time
+    def pkt_update(self):
+        self.pkt_time_max = self.local.packet_time
+        
+    def frame_received(self, frame):
         if(type(frame) == frames.HELLO_ADV):
-            self.hello_time_max = (time.perf_counter() - start_time) * 1000         # bmx.start_time
-            # current_time = time.strftime("%H:%M:%S", self.hello_time_max)
-            # print(current_time)
+            self.hello_time_max = (time.perf_counter() - start_time) * 1000     # bmx.start_time
+            self.hello_sqn_max = frame.HELLO_sqn_no
 
-    def LINK_ADV_msg_received(self, link_adv_msg):
-        self.key = link_node_key(link_adv_msg.peer_local_id, link_adv_msg.peer_dev_index)
 
 
 @dataclass
@@ -198,7 +199,7 @@ class dev_node:
 
 @dataclass
 class link_dev_key:
-    link: link_node = link_node()                                               # link that uses the interface
+    link: int = 0 #link_node = link_node()                                               # link that uses the interface
     # dev: dev_node = dev_node()                                                # outgoing interface for transmiting (dev_node)
 
 
@@ -213,7 +214,7 @@ class lndev_probe_record:
     hello_umetric: int = 0                                                      # UMETRIC_T
     hello_time_max: time = 0                                                    # timeout value for the HELLO packet (TIME_T)
 
-    link_window: int = 48                                                       # sliding window size (48 default, 128 max)
+    link_window = 48                                                       # sliding window size (48 default, 128 max)
 
     # TO DO: make a function that appends 0 when nothing is received after some time
 
