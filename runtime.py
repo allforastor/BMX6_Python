@@ -3,6 +3,7 @@ import time
 from sys import getsizeof
 from collections import deque
 from dataclasses import dataclass, field
+import socket
 
 from numpy import append
 import bmx
@@ -10,24 +11,30 @@ import nodes
 import frames
 import miscellaneous
 
+import psutil
+
 # TESTING
 ln_head = frames.header(0,0,0,0)
 ln_msg = frames.LINK_ADV_msg(1,1,1)
 ln_frame = frames.LINK_ADV(ln_head, 1, [ln_msg])
 head = bmx.packet_header(0,0,0,0,0,0,0,0)
-packet = bmx.packet(head, [ln_frame, ln_frame, ln_frame])
+packet = bmx.packet(head, [ln_frame])
+
+node_list = []                  # list of local_nodes
+local_IDs = []                  # list of local_ids
+# node_IIDs = []                # list of local_IIDs (can be substituted by however Geom does)
+# rx_packets = []               # array of received (dataclass) packets
 
 
+# BMX6 PROCESS
 
-node_list = []              # list of local_nodes
-node_IIDs = []              # local_IIDs
-# rx_frames = []              # array of received (dataclass) frames
-
-# initialize an avl_tree that will hold node structures
+    # loid = local_id_generation()
+    # node_list.append(nodes.local_node(local_id = loid))
+    # local_IDs.append(id)
 
 def check_if_existing(id):
-    for x in node_IIDs:
-        if(node_IIDs[x] == id):     # if the ID is in the node_IIDs list, then it exists
+    for x in local_IDs:
+        if(local_IDs[x] == id):     # if the ID is in the node_IIDs list, then it exists
             return x
     return -1
 
@@ -56,7 +63,7 @@ def packet_received(self):
             elif(type(frame) == frames.RP_ADV):     # RP_ADV
                 local.rp_adv_received(frame)  
         node_list.append(local)
-        node_IIDs.append(local.local_id)
+        # node_IIDs.append(local.local_id)
     elif(exists > 0):               # existing node (UPDATES only)
         node_list[exists].pkt_received(self.header)                         # update packet-related class attributes
         for frame in self.frames:
@@ -130,4 +137,40 @@ def print_all(nodes):
 
 packet_received(packet)
 print_all(node_list)
-print("IIDs:", node_IIDs)
+# print("IIDs:", node_IIDs)
+
+@dataclass
+class net_info:
+    name: str = None
+    ipv4: ipaddress.ip_address = None
+    ipv6: ipaddress.ip_address = None
+    mac: str = None
+    # name: str = ""
+    # ipv4: ipaddress.ip_address = ipaddress.ip_address('0.0.0.0')
+    # ipv6: ipaddress.ip_address = ipaddress.ip_address('1:1::1')
+    # mac: str = ""
+
+netlist = []
+for x, y in psutil.net_if_addrs().items():
+    interface = net_info(name = x)
+    for z in y:
+        # print('\t', z, type(z))
+        # print('\t\t', z.family)
+        # print('\t\t', z.address)
+        if(z.family is psutil.AF_LINK):
+            interface.mac = z.address
+        elif(z.family is socket.AF_INET):
+            interface.ipv4 = z.address
+        elif(z.family is socket.AF_INET6):
+            interface.ipv6 = z.address
+    netlist.append(interface)
+    # print(interface, '\n')
+
+for x in netlist:
+    print("'",x.name,"':",sep='')
+    if(x.ipv4 != None):
+        print("    IPv4:",'\t', x.ipv4)
+    if(x.ipv6 != None):
+        print("    IPv6:",'\t', x.ipv6)
+    if(x.mac != None):
+        print("    MAC:",'\t', x.mac)

@@ -8,7 +8,6 @@ from dataclasses import dataclass, field
 import frames
 import miscellaneous
 
-
 start_time = time.perf_counter()
 
 # avl_tree local_tree
@@ -134,6 +133,32 @@ class link_node:
             self.hello_time_max = (time.perf_counter() - start_time) * 1000     # bmx.start_time
             self.hello_sqn_max = frame.HELLO_sqn_no
 
+@dataclass
+class if_link_node:
+    update_sqn: int = 0
+    changed: int = 0
+    index: int = 0
+    type: int = 0
+    alen: int = 0
+    flags: int = 0
+
+    addr: int = 0                                                               # ADDR_T
+    name: str = ""
+
+    if_addr_tree: list = field(default_factory=lambda:[])                       # avl_tree
+
+@dataclass
+class if_addr_node:
+    iln: if_link_node
+    dev: list = field(default_factory=lambda:[])                                # dev_node
+    rta_tb: list = field(default_factory=lambda:[])                             # array[]
+
+
+
+@dataclass
+class dev_ip_key:
+    ip: ipaddress.ip_address = ipaddress.ip_address('0.0.0.0')                  # copy of dev.if_llocal_addr.ip_addr
+    idx: int = -1                                                               # link_key.dev_idx (DEVADV_IDX_T)
 
 
 @dataclass
@@ -153,12 +178,12 @@ class dev_node:
 
     dev_adv_msg: int
 
-    ifname_label: int                                                           # IFNAME_T
-    ifname_device: int                                                          # IFNAME_T
+    ifname_label: str                                                           # IFNAME_T
+    ifname_device: str                                                          # IFNAME_T
 
     # dummy_lndev: link_dev_node
     
-    llip_key: int                                                               # dev_ip_key
+    llip_key: dev_ip_key
     mac: int                                                                    # MAC_T
 
     ip_llocal_str: str                                                          # array[IPX_STR_LEN]
@@ -226,8 +251,6 @@ class lndev_probe_record:
         self.hello_sqn_max = self.hello_sqn_max + 1
 
     def HELLO_received(self, sqn):
-        # if self.hello_sqn_max == -1:
-        #     print("first received")
         if sqn == self.hello_sqn_max:
             self.update_record(1)
         elif(sqn > self.hello_sqn_max):
