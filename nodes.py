@@ -510,9 +510,9 @@ class throw_node:
 class ogm_aggreg_node:
     #list_n: list = field(default_factory=lambda: [])  # list_node  # excluded for now, uncomment whenever relevant
 
-    ogm_advs: list = = field(default_factory=lambda: [])
+    ogm_advs: list = field(default_factory=lambda: [])
 
-    ogm_dest_field: list = = field(default_factory=lambda: [])   # array[(OGM_DEST_ARRAY_BIT_SIZE/8)]  # store dests where ogm frame is supposed to be sent
+    ogm_dest_field: list = field(default_factory=lambda: [])   # array[(OGM_DEST_ARRAY_BIT_SIZE/8)]  # store dests where ogm frame is supposed to be sent
     #ogm_dest_bytes: int                # removed from original
 
     aggregated_msgs_sqn_no: int = 0    # originally aggregated_msgs # deviated from original
