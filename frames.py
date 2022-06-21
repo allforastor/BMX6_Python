@@ -1,14 +1,14 @@
 import string
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 import socket
 import re, uuid
 
 @dataclass
 class header:
-    short_frm: int
-    relevant_frm: int
-    frm_type: int
-    frm_len: int
+    short_frm: int = 0
+    relevant_frm: int = 0
+    frm_type: int = 0
+    frm_len: int = 0
 
 @dataclass
 class HELLO_ADV:
@@ -27,18 +27,18 @@ class RP_ADV:
 
 @dataclass
 class OGM_ADV_msg:
-    metric_mantisse: int
-    metric_exponent: int
-    iid_offset: int
-    ogm_sqn_no: int
+    metric_mantisse: int = 0    
+    metric_exponent: int = 0
+    iid_offset: int = None
+    ogm_sqn_no: int = -1
 
 @dataclass
 class OGM_ADV:
     frm_header: header
-    agg_sqn_no: int
-    ogm_dest_arr_size: int
-    ogm_dest_arr: list[int]
-    ogm_adv_msgs: list[OGM_ADV_msg]
+    agg_sqn_no: int = -1
+    ogm_dest_arr_size: int = None
+    ogm_dest_arr: list = field(default_factory=lambda: [])
+    ogm_adv_msgs: list = field(default_factory=lambda: [])
         
     def best_ogm_msg(self) -> OGM_ADV_msg:          #comparison of OGM_ADV_msg inside OGM_ADV frame
         seq_no = []
@@ -61,13 +61,13 @@ class OGM_ADV:
 
 @dataclass
 class OGM_ACK_msg:
-    ogm_dest: int
-    agg_sqn_no: int 
+    ogm_dest: int = None                # # tells the node who sent ogm adv; value is the position of the rx node in the link_adv of the tx
+    agg_sqn_no: int = -1
     
 @dataclass
-class OGM_ACK:  # sent twice by default  # only ack nodes who requested ogm frame
+class OGM_ACK:                          # sent twice by default  # only ack nodes who requested ogm frame
     frm_header: header
-    ogm_ack_msgs: list[OGM_ACK_msg]
+    ogm_ack_msgs: list = field(default_factory=lambda: [])
 
 @dataclass
 class LINK_REQ:
