@@ -91,17 +91,17 @@ class local_node:
             self.rp_ogm_request_received = 0
         self.orig_routes = 0
 
-    # def set_iid_offset_for_ogm_msg(self, OGM_ADV, neighbor):   # initialize iid offset for msgs 
-    #     for msg in OGM_ADV.ogm_msgs:
-    #         if msg.iid_offset is None:  # ogm msg is in the originator, initialization
-    #             msg.iid_offset = 0
-    #             iid = msg.iid_offset
-    #         else:
-    #             neighiid = msg.iid_offset   # ogm msg contains iid of the originator
-    #             iid = neighbor.get_myIID4x_by_neighIID4x(neighiid)
-    #             msg.iid_offset = iid
-
-    #     self.orig_routes = iid  # store iid value to local node
+    #def set_iid_offset_for_ogm_msg(self, OGM_ADV, neighbor):   # initialize iid offset for msgs # migrate to somewhere # works for 1 frame only # modified
+    #    for msg in OGM_ADV.ogm_adv_msgs:
+    #        if msg.iid_offset is None:  # ogm msg is in the originator, initialization # maybe change to < 0
+    #            msg.iid_offset = 0
+    #            iid = msg.iid_offset
+    #        else:
+    #            neighiid = msg.iid_offset   # ogm msg contains iid of the originator
+    #            iid = neighbor.get_myIID4x_by_neighIID4x(neighiid)
+    #            msg.iid_offset = iid
+    #
+    #    self.orig_routes = iid  # store iid value to local node
 
 
 
@@ -406,43 +406,76 @@ class desc_tlv_hash_node:
     tlv_type: int
     test_changed: int
     prev_changed: int
+        
+@dataclass  
+class host_metricalgo:
+    fmetric_u16_min: float  # FMETRIC_U16_T
+
+    umetric_min: int  # UMETRIC_T
+    algo_type: int  # ALGO_T
+    flags: int  # uint16_t
+    algo_rp_exp_numerator: int  # uint8_t
+    algo_rp_exp_divisor: int  # uint8_t
+    algo_tp_exp_numerator: int  # uint8_t
+    algo_tp_exp_divisor: int  # uint8_t
+
+    window_size: int  # uint8_t
+    lounge_size: int  # uint8_t
+    regression: int  # uint8_t
+    # fast_regression: int   # uint8_t
+    # fast_regression_impact: int    # uint8_t
+    hystere: int  # uint8_t
+    hop_penalty: int  # uint8_t
+    late_penalty: int  # uint8_t
 
 @dataclass
-class orig_node:
-    global_id: str                      # GLOBAL_ID_T (32 len) + PKID_T
+class orig_node:    
+    global_id: int   # GLOBAL_ID_T (32 len) + PKID_T # default -1
 
-    dhash_n: list                       # dhash_node
-    desc: int                           # **description (MISSING???)
-    desc_tlv_hash_tree: int             # **avl_tree
+    dhash_n: list  # dhash_node   # default dhash_node
+    desc: int  # **description (MISSING???)
+    desc_tlv_hash_tree: int  # **avl_tree
 
-    updated_timestamp: time             # TIME_T
+    updated_timestamp: time  # TIME_T   # last time this orig node's description was updated # default
 
-    desc_sqn: int                       # DESC_SQN_T (16 bits)
+    desc_sqn: int  # DESC_SQN_T (16 bits)
 
-    ogm_sqn_range_min: int              # OGM_SQN_T (16 bits)
-    ogm_sqn_range_size: int             # OGM_SQN_T (16 bits)
+    ogm_sqn_range_min: int  # OGM_SQN_T (16 bits) # default -1
+    ogm_sqn_range_size: int  # OGM_SQN_T (16 bits)  # default -1
 
-    primary_ip: ipaddress.ip_address    # IPX_T
-    primary_ip_str: str                 # array[IPX_STR_LEN]
+    primary_ip: ipaddress.ip_address    # ip of link (IPX_T), default = ipaddress.ip_address('0.0.0.0')
+    primary_ip_str: str  # array[IPX_STR_LEN]
     blocked: int
     added: int
 
-    path_metricalgo: int                # **host_metricalgo (HAROLD)
+    path_metricalgo: host_metricalgo  # **host_metricalgo (HAROLD) # modified
 
-    ogm_sqn_max_received: int           # OGM_SQN_T (16 bits)
+    ogm_sqn_max_received: int  # OGM_SQN_T (16 bits)
 
-    ogm_sqn_next: int                   # OGM_SQN_T (16 bits)
-    ogm_metric_next: int                # UMETRIC_T
+    ogm_sqn_next: int  # OGM_SQN_T (16 bits)
+    ogm_metric_next: int  # UMETRIC_T
 
-    ogm_sqn_send: int                   # OGM_SQN_T (16 bits)
+    ogm_sqn_send: int  # OGM_SQN_T (16 bits)
 
-    metric_sqn_max_arr: int             # UMETRIC_T - *remove*
+    metric_sqn_max_arr: int  # UMETRIC_T - *remove*
 
-    rt_tree: int                        # **avl_tree
+    rt_tree: int  # **avl_tree
 
-    best_rt_local: router_node          
+    best_rt_local: router_node
     curr_rt_local: router_node
     curr_rt_linkdev: link_dev_node
+
+    def ack_ogm_frame(self, frame):  # function to ack ogm frames by creating ogm ack msgs
+        if type(frame) == frames.OGM_ADV:  # check if ogm adv is received
+            ack_msg1 = frames.OGM_ACK_msg  # assign 2 ack msgs with sqn number of ogm frame
+            ack_msg2 = frames.OGM_ACK_msg
+            ack_msg1.agg_sqn_no = frame.agg_sqn_no
+            ack_msg2.agg_sqn_no = frame.agg_sqn_no
+            self.ogm_sqn_max_received = frame.agg_sqn_no
+            self.ogm_sqn_next = frame.agg_sqn_no + 1
+            self.ogm_sqn_send = frame.agg_sqn_no
+
+        return ack_msg1, ack_msg2
 
 
 # avl_tree dhash_tree
@@ -475,11 +508,11 @@ class throw_node:
 
 @dataclass
 class ogm_aggreg_node:
-    #list_n: list = field(default_factory=list)  # list_node  # excluded for now, uncomment whenever relevant
+    #list_n: list = field(default_factory=lambda: [])  # list_node  # excluded for now, uncomment whenever relevant
 
-    ogm_advs: list[frames.OGM_ADV]
+    ogm_advs: list = = field(default_factory=lambda: [])
 
-    ogm_dest_field: list = field(default_factory=list)   # array[(OGM_DEST_ARRAY_BIT_SIZE/8)]  # store dests where ogm frame is supposed to be sent
+    ogm_dest_field: list = = field(default_factory=lambda: [])   # array[(OGM_DEST_ARRAY_BIT_SIZE/8)]  # store dests where ogm frame is supposed to be sent
     #ogm_dest_bytes: int                # removed from original
 
     aggregated_msgs_sqn_no: int = 0    # originally aggregated_msgs # deviated from original
@@ -503,3 +536,5 @@ class ogm_aggreg_node:
 
             else:
                 continue    # # if frame already given a sqn number, ignore
+
+                
