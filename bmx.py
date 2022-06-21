@@ -69,12 +69,12 @@ def send(group, port, ttl, msg):
 
 
 
+
 def create_packet(packetheader, frameslist):
 	frames_bytes = b''
 
 	for i in frameslist:
 		if type(i) == frames.HELLO_ADV:
-			#print("I am hello adv")
 			frames_bytes += HELLO_ADV_to_bytes(i)
 
 		elif type(i) == frames.RP_ADV:
@@ -88,6 +88,28 @@ def create_packet(packetheader, frameslist):
 
 		elif type(i) == frames.DEV_REQ:
 			frames_bytes += DEV_REQ_to_bytes(i)
+
+		elif type(i) == frames.DEV_ADV:
+			frames_bytes += DEV_ADV_to_bytes(i)
+
+		elif type(i) == frames.DESC_REQ:
+			frames_bytes += DESC_REQ_to_bytes(i)
+
+		elif type(i) == frames.DESC_ADV:
+			pass
+
+		elif type(i) == frames.HASH_REQ:
+			frames_bytes += HASH_REQ_to_bytes(i)
+
+		elif type(i) == frames.HASH_ADV:
+			frames_bytes += HASH_ADV_to_bytes(i)
+
+		elif type(i) == frames.OGM_ACK:
+			frames_bytes += OGM_ACK_to_bytes(i)
+
+		elif type(i) == frames.OGM_ADV:
+			pass
+
 
 	len_of_all_frames = len(frames_bytes)
 
@@ -150,6 +172,45 @@ def dissect_packet(recvd_packet):
 			frameslist.append(dev_req_frame)
 			curr_pos += dev_req_frame.frm_header.frm_len
 
+		elif frameheader_unkown.frm_type == 6:
+			dev_adv_frame = recvd_packet[curr_pos:curr_pos + frameheader_unkown.frm_len]
+			dev_adv_frame = dissect_DEV_ADV(dev_adv_frame)
+			frameslist.append(dev_adv_frame)
+			curr_pos += dev_adv_frame.frm_header.frm_len
+
+		elif frameheader_unkown.frm_type == 7:
+			desc_req_frame = recvd_packet[curr_pos:curr_pos + frameheader_unkown.frm_len]
+			desc_req_frame = dissect_DESC_REQ(desc_req_frame)
+			frameslist.append(desc_req_frame)
+			curr_pos += desc_req_frame.frm_header.frm_len
+		#not yet done
+		elif frameheader_unkown.frm_type == 8:
+			desc_adv_frame = recvd_packet[curr_pos:curr_pos + frameheader_unkown.frm_len]
+			desc_adv_frame = dissect_DESC_ADV(desc_adv_frame)
+			frameslist.append(desc_adv_frame)
+			curr_pos += desc_adv_frame.frm_header.frm_len
+
+		elif frameheader_unkown.frm_type == 9:
+			hash_req_frame = recvd_packet[curr_pos:curr_pos + frameheader_unkown.frm_len]
+			hash_req_frame = dissect_HASH_REQ(hash_req_frame)
+			frameslist.append(hash_req_frame)
+			curr_pos += hash_req_frame.frm_header.frm_len
+
+		elif frameheader_unkown.frm_type == 10:
+			hash_adv_frame = recvd_packet[curr_pos:curr_pos + frameheader_unkown.frm_len]
+			hash_adv_frame = dissect_HASH_ADV(hash_adv_frame)
+			frameslist.append(hash_adv_frame)
+			curr_pos += hash_adv_frame.frm_header.frm_len
+
+		elif frameheader_unkown.frm_type == 11:
+			ogm_ack_frame = recvd_packet[curr_pos:curr_pos + frameheader_unkown.frm_len]
+			ogm_ack_frame = dissect_OGM_ACK(ogm_ack_frame)
+			frameslist.append(ogm_ack_frame)
+			curr_pos += ogm_ack_frame.frm_header.frm_len
+
+		elif frameheader_unkown.frm_type == 12:
+			ogm_adv_frame = recvd_packet[curr_pos:curr_pos + frameheader_unkown.frm_len]
+
 	packetrecvd = (packetheader, frameslist)
 
 	return packetrecvd
@@ -200,7 +261,7 @@ def dissect_short_frame_header(recvd_header):
 		relevant_frame = 0
 		frametype = relevant_and_frametype
 
-	frame_header = frames.header(short_frame, relevant_frame, frametype, frame_len)
+	frame_header = frames.short_header(short_frame, relevant_frame, frametype, frame_len)
 
 	return frame_header
 	
@@ -243,16 +304,16 @@ def dissect_long_frame_header(recvd_header):
 
 	return frame_header
 
-
-def is_short_header(frame):
+def set_frame_header(frame):
 	short_frame_header_length = 2
 	long_frame_header_length = 4
 	relevant_frame = frame.frm_header.relevant_frm
 
-	if type(frame) == frames.HELLO_ADV:
-		hello_sqn_no = frame.HELLO_sqn_no
-		short_frame = 1
+
+	if type(frame) == frames.HELLO_ADV: # if frame type is HELLO_ADV, set frm_type to 1
 		frame_type = 1
+		short_frame = 1
+		hello_sqn_no = frame.HELLO_sqn_no
 		frame_length = short_frame_header_length + 2 #size of the hello sequence number
 		created_frame = frames.HELLO_ADV(frames.short_header(short_frame, relevant_frame, frame_type, frame_length), hello_sqn_no)
 
@@ -269,36 +330,105 @@ def is_short_header(frame):
 			created_frame = frames.RP_ADV(frames.short_header(short_frame, relevant_frame, frame_type, frame_length), frame.rp_msgs)
 
 	elif type(frame) == frames.LINK_REQ:
-		destination_local_id = frame.dest_local_id
-		short_frame = 1
 		frame_type = 3
+		short_frame = 1
+		destination_local_id = frame.dest_local_id
 		frame_length = short_frame_header_length + 4 #size of the destination local id
 		created_frame = frames.LINK_REQ(frames.short_header(short_frame, relevant_frame, frame_type, frame_length), destination_local_id)
 
 	elif type(frame) == frames.LINK_ADV:
 		frame_type = 4
 		reserved = 0
+		device_sequence_no_reference_length = 2
 		if len(frame.link_msgs) > 255 - short_frame_header_length:
 			short_frame = 0
-			frame_length = long_frame_header_length + 2 + 6*(len(frame.link_msgs)) #since every link msg is 6 bytes in length
-			created_frame = frames.LINK_ADV(frames.long_header(short_frame, frame.frm_header.relevant_frm, frame_type, reserved, frame_length), frame.dev_sqn_no_ref, frame.link_msgs)
+			frame_length = long_frame_header_length + device_sequence_no_reference_length + 6*(len(frame.link_msgs)) #since every link msg is 6 bytes in length
+			created_frame = frames.LINK_ADV(frames.long_header(short_frame, relevant_frame, frame_type, reserved, frame_length), frame.dev_sqn_no_ref, frame.link_msgs)
 		else:
 			short_frame = 1
-			frame_length = short_frame_header_length + 2 + 6*(len(frame.link_msgs)) #since every link msg is 6 bytes in length
-			created_frame = frames.LINK_ADV(frames.short_header(short_frame, frame.frm_header.relevant_frm, frame_type, frame_length), frame.dev_sqn_no_ref, frame.link_msgs)
+			frame_length = short_frame_header_length + device_sequence_no_reference_length + 6*(len(frame.link_msgs)) #since every link msg is 6 bytes in length
+			created_frame = frames.LINK_ADV(frames.short_header(short_frame, relevant_frame, frame_type, frame_length), frame.dev_sqn_no_ref, frame.link_msgs)
 	
 	elif type(frame) == frames.DEV_REQ:
-		destination_local_id = frame.dest_local_id
-		short_frame = 1
 		frame_type = 5
-		frame_length = short_frame_header_length + 4 # size of tje destination local id
+		short_frame = 1
+		destination_local_id = frame.dest_local_id
+		frame_length = short_frame_header_length + 4 # size of tHe destination local id
 		created_frame = frames.DEV_REQ(frames.short_header(short_frame, relevant_frame, frame_type, frame_length), destination_local_id)
+
+	elif type(frame) == frames.DEV_ADV:
+		frame_type = 6
+		reserved = 0
+		device_sequence_no_length = 2
+		if len(frame.dev_msgs) > 255 - device_sequence_no_length - short_frame_header_length:
+			short_frame = 0
+			frame_length = long_frame_header_length + device_sequence_no_length + 26*(len(frame.dev_msgs))
+			created_frame = frames.DEV_ADV(frames.long_header(short_frame, relevant_frame, reserved, frame_length), frame.dev_sqn_no, frame.dev_msgs)
+	
+		else:
+			short_frame = 1
+			frame_length = short_frame_header_length + device_sequence_no_length + 26*(len(frame.dev_msgs))
+			created_frame = frames.DEV_ADV(frames.short_header(short_frame, relevant_frame, frame_type, frame_length), frame.dev_sqn_no, frame.dev_msgs)
+	
+	elif type(frame) == frames.DESC_REQ:
+		frame_type = 7
+		reserved = 0
+		if len(frame.desc_msgs) > 255 - short_frame_header_length:
+			short_frame = 0
+			frame_length = long_frame_header_length + 6*(len(frame.desc_msgs))
+			created_frame = frames.DESC_REQ(frames.long_header(short_frame, relevant_frame, frame_type, reserved, frame_length), frame.desc_msgs)
+		else:
+			short_frame = 1
+			frame_length = short_frame_header_length + 6*(len(frame.desc_msgs))
+			created_frame = frames.DESC_REQ(frames.short_header(short_frame, relevant_frame, frame_type, frame_length), frame.desc_msgs)
+
+	elif type(frame) == frames.DESC_ADV:
+		frame_type = 8
+
+	elif type(frame) == frames.HASH_REQ:
+		frame_type = 9
+		reserved = 0
+		if len(frame.hash_msgs) > 255 - short_frame_header_length:
+			short_frame = 0
+			frame_length = long_frame_header_length + 6*(len(frame.hash_msgs))
+			created_frame = frames.HASH_REQ(frames.long_header(short_frame, relevant_frame, frame_type, reserved, frame_length), frame.hash_msgs)
+		else:
+			short_frame = 1
+			frame_length = short_frame_header_length + 6*(len(frame.hash_msgs))
+			created_frame = frames.HASH_REQ(frames.short_header(short_frame, relevant_frame, frame_type, frame_length), frame.hash_msgs)
+
+	elif type(frame) == frames.HASH_ADV:
+		frame_type = 10
+		short_frame = 1
+		transmitterIID4x = frame.trans_iid4x
+		description_hash = frame.desc_hash
+		frame_length = short_frame_header_length + 2 + 20 # size of the transmitterIID4x = 2 bytes and size of description hash is 20 bytes
+		created_frame = frames.HASH_ADV(frames.short_header(short_frame, relevant_frame, frame_type, frame_length), transmitterIID4x, description_hash)
+
+	elif type(frame) == frames.OGM_ACK:
+		frame_type = 11
+		short_frame = 1
+		ogm_destination = frame.ogm_dest
+		aggregation_sequence_number = frame.agg_sqn_no
+		frame_length = short_frame_header_length + 1 + 1 # size of the ogm_destination = 1 byte and size of aggregation_sequence_number is 1 byte
+		created_frame = frames.OGM_ACK(frames.short_header(short_frame, relevant_frame, frame_type, frame_length), ogm_destination, aggregation_sequence_number)
+
+	elif type(frame) == frames.OGM_ADV:
+		frame_type = 12
+
 
 	return created_frame
 	
+def is_short_header(frame_header):
+	if frame_header.short_frm == 1:
+		frame_header = short_frame_header_to_bytes(frame_header)
+	else:
+		frame_header = long_frame_header_to_bytes(frame_header)
+
+	return frame_header
 
 def HELLO_ADV_to_bytes(HELLO_ADV):
-	HELLO_ADV = is_short_header(HELLO_ADV)
+	HELLO_ADV = set_frame_header(HELLO_ADV)
 	frame_header = short_frame_header_to_bytes(HELLO_ADV.frm_header)
 	hello_sqn_no = struct.pack("!H", HELLO_ADV.HELLO_sqn_no)
 
@@ -318,13 +448,9 @@ def dissect_HELLO_ADV(recvd_HELLO_ADV):
 
 
 def RP_ADV_to_bytes(RP_ADV):
-	RP_ADV = is_short_header(RP_ADV)
+	RP_ADV = set_frame_header(RP_ADV)
 	
-	if RP_ADV.frm_header.short_frm == 1:
-		frame_header = short_frame_header_to_bytes(RP_ADV.frm_header)
-
-	else:
-		frame_header = long_frame_header_to_bytes(RP_ADV.frm_header)
+	frame_header = is_short_header(RP_ADV.frm_header)
 
 	rp_adv_msg_list = b'' #initialize empty byte to store rp_adv_msg
 	for i in RP_ADV.rp_msgs:
@@ -334,35 +460,6 @@ def RP_ADV_to_bytes(RP_ADV):
 	rp_adv = frame_header + rp_adv_msg_list
 
 	return rp_adv
-
-'''
-	short_frame_header_length = 2
-	long_frame_header_length = 4
-	reserved = 0
-	frame_type = 2
-	
-	if len(RP_ADV.rp_msgs) > 255 - short_frame_header_length:
-		short_frame = 0
-		frame_length = long_frame_header_length + 1*(len(RP_ADV.rp_msgs)) #setting the frame length of RP_ADV
-		new_RP_ADV = frames.RP_ADV(frames.long_header(short_frame, RP_ADV.frm_header.relevant_frm, frame_type, reserved, frame_length), RP_ADV.rp_msgs)
-		frame_header = long_frame_header_to_bytes(new_RP_ADV.frm_header)
-	else:
-		short_frame = 1
-		frame_length = short_frame_header_length + 1*(len(RP_ADV.rp_msgs)) #setting the frame length of RP_ADV
-		new_RP_ADV = frames.RP_ADV(frames.short_header(short_frame, RP_ADV.frm_header.relevant_frm, frame_type, frame_length), RP_ADV.rp_msgs)
-		frame_header = frame_header_to_bytes(new_RP_ADV.frm_header)
-#	RP_ADV.frm_header.frm_len = 2 + 1*(len(RP_ADV.rp_msgs)) #setting the frame length of RP_ADV
-	
-
-	rp_adv_msg_list = b'' 
-	for i in RP_ADV.rp_msgs:
-		rp_adv_msg_list = rp_adv_msg_list + RP_ADV_msg_to_bytes(i)
-	
-	#print(rp_adv_msg_list)
-	rp_adv = frame_header + rp_adv_msg_list
-
-	return rp_adv
-'''
 
 def dissect_RP_ADV(recvd_RP_ADV):
 	
@@ -415,7 +512,7 @@ def dissect_RP_ADV_msg(recvd_RP_msg):
 	
 
 def LINK_REQ_to_bytes(LINK_REQ):
-	LINK_REQ = is_short_header(LINK_REQ)
+	LINK_REQ = set_frame_header(LINK_REQ)
 	frame_header = short_frame_header_to_bytes(LINK_REQ.frm_header)
 
 	destination_local_id = struct.pack("!I", LINK_REQ.dest_local_id)
@@ -458,11 +555,8 @@ def dissect_LINK_ADV_msg(recvd_LINK_ADV_msg):
 
 def LINK_ADV_to_bytes(LINK_ADV):
 	#LINK_ADV.frm_header.frm_len = 2 + 2 + 6*(len(LINK_ADV.link_msgs))
-	LINK_ADV = is_short_header(LINK_ADV)
-	if LINK_ADV.frm_header.short_frm == 1:
-		frame_header = short_frame_header_to_bytes(LINK_ADV.frm_header)
-	else:
-		frame_header = long_frame_header_to_bytes(LINK_ADV.frm_header)
+	LINK_ADV = set_frame_header(LINK_ADV)
+	frame_header = is_short_header(LINK_ADV.frm_header)
 	
 	device_sequence_no_reference = struct.pack("!H", LINK_ADV.dev_sqn_no_ref)
 
@@ -507,7 +601,7 @@ def dissect_LINK_ADV(recvd_LINK_ADV):
 	return link_adv
 
 def DEV_REQ_to_bytes(DEV_REQ):
-	DEV_REQ = is_short_header(DEV_REQ) 
+	DEV_REQ = set_frame_header(DEV_REQ) 
 	frame_header = short_frame_header_to_bytes(DEV_REQ.frm_header)
 	destination_local_id = struct.pack("!I", DEV_REQ.dest_local_id)
 
@@ -526,27 +620,240 @@ def dissect_DEV_REQ(recvd_DEV_REQ):
 	return dev_req
 
 def DEV_ADV_msg_to_bytes(DEV_ADV_msg):
-	pass
+	device_index = DEV_ADV_msg.dev_index
+	channel = DEV_ADV_msg.channel
+	transmitter_bitrate_min = DEV_ADV_msg.trans_bitrate_min
+	transmitter_bitrate_max = DEV_ADV_msg.trans_bitrate_max
+	local_ipv6 = binascii.unhexlify(DEV_ADV_msg.local_ipv6)
+	mac_address = binascii.unhexlify(DEV_ADV_msg.mac_address)
+
+	dev_adv_msg = struct.pack("!B B B B 16s 6s", device_index, channel, transmitter_bitrate_min, 
+												transmitter_bitrate_max, local_ipv6, mac_address)
+
+	return dev_adv_msg
 
 def dissect_DEV_ADV_msg(recvd_DEV_ADV_msg):
-	pass
+	recvd_dev_adv_msg = struct.unpack("!B B B B 16s 6s", recvd_DEV_ADV_msg)
 
-#NOT YET DONE
+	device_index = recvd_dev_adv_msg[0]
+	channel = recvd_dev_adv_msg[1]
+	transmitter_bitrate_min = recvd_dev_adv_msg[2]
+	transmitter_bitrate_max =recvd_dev_adv_msg[3]
+	local_ipv6 = binascii.hexlify(recvd_dev_adv_msg[4]).decode('ascii')
+	mac_address = binascii.hexlify(recvd_dev_adv_msg[5]).decode('ascii')
+
+	dev_adv_msg = frames.DEV_ADV_msg(device_index, channel, transmitter_bitrate_min, transmitter_bitrate_max, local_ipv6, mac_address)
+
+	return dev_adv_msg
+
 def DEV_ADV_to_bytes(DEV_ADV):
-	DEV_ADV = is_short_header(DEV_ADV)
-	if DEV_ADV.frm_header.short_frm == 1:
-		frame_header = short_frame_header_to_bytes(DEV_ADV.frm_header)
-	else:
-		frame_header = long_frame_header_to_bytes(DEV_ADV.frm_header)
+	DEV_ADV = set_frame_header(DEV_ADV)
+	frame_header = is_short_header(DEV_ADV.frm_header)
 
-	device_sequence_number = DEV_ADV.dev_sqn_no
 
+	device_sequence_number = struct.pack("!H", DEV_ADV.dev_sqn_no)
 
 	dev_adv_msg_list = b''
+	for i in DEV_ADV.dev_msgs:
+		dev_adv_msg_list = dev_adv_msg_list + DEV_ADV_msg_to_bytes(i)
+
+	dev_adv = frame_header + device_sequence_number + dev_adv_msg_list
+
+	return dev_adv
 
 def dissect_DEV_ADV(recvd_DEV_ADV):
+	if recvd_DEV_ADV[0] >= 128:
+		frame_header = dissect_short_frame_header(recvd_DEV_ADV[:2]) #since short header size is 2 bytes
+		#the next 2 bytes is the device sequence number 
+		#then unpack the device sequence number 
+		device_sequence_no = recvd_DEV_ADV[2:4] 
+		device_sequence_no = struct.unpack("!H", device_sequence_no)
+		dev_adv_msg_list_raw = recvd_DEV_ADV[4:] #received dev_adv_msgs are from 4 bytes onwards
+	else:
+		frame_header = dissect_long_frame_header(recvd_DEV_ADV[:4]) #since long header size is 4 bytes
+		#the next 2 bytes is the device sequence number 
+		#then unpack the device sequence number 
+		device_sequence_no = recvd_DEV_ADV[4:6] 
+		device_sequence_no = struct.unpack("!H", device_sequence_no)
+		dev_adv_msg_list_raw = recvd_DEV_ADV[6:]#received dev_adv_msgs are from 6 bytes onwards
+
+	dev_adv_msg_list_raw_size = len(dev_adv_msg_list_raw)
+	dev_adv_msg_list = []
+
+	#iterate through every 26 bytes since the length of a dev_adv_msg is 26 bytes
+	# 1 byte = device index, 1 byte = channel, 1 byte = transmitter bitrate min, 1 btye = transmitter bitrate max, 
+	# 16 bytes = local ipv6 and 6 bytes = mac address
+	for i in range(0, dev_adv_msg_list_raw_size, 26):
+		x = dissect_DEV_ADV_msg(dev_adv_msg_list_raw[i:(i + 26)]) #dissects the 26 bytes
+		dev_adv_msg_list.append(x)
+
+	dev_adv = frames.DEV_ADV(frame_header, device_sequence_no, dev_adv_msg_list)
+
+	return dev_adv
+
+def DESC_REQ_msg_to_bytes(DESC_REQ_msg):
+	destination_local_id = DESC_REQ_msg.dest_local_id
+	receiver_iid = DESC_REQ_msg.receiver_iid
+
+	desc_req_msg_bytes = struct.pack("!IH", destination_local_id, receiver_iid)
+
+	return desc_req_msg_bytes
+
+def dissect_DESC_REQ_msg(recvd_DESC_REQ_msg):
+	recvd_desc_req_msg = struct.unpack("!IH", recvd_DESC_REQ_msg)
+
+	destination_local_id = recvd_desc_req_msg[0]
+	receiver_iid = recvd_desc_req_msg[1]
+
+	desc_req_msg = frames.DESC_REQ_msg(destination_local_id, receiver_iid)
+
+	return desc_req_msg
+
+def DESC_REQ_to_bytes(DESC_REQ):
+	DESC_REQ = set_frame_header(DESC_REQ)
+	frame_header = is_short_header(DESC_REQ.frm_header)
+
+
+	desc_req_msg_list = b''
+	for i in DESC_REQ.desc_msgs:
+		desc_req_msg_list = desc_req_msg_list + DESC_REQ_msg_to_bytes(i)
+
+	desc_req_bytes = frame_header + desc_req_msg_list
+
+	return desc_req_bytes
+
+def dissect_DESC_REQ(recvd_DESC_REQ):
+	if recvd_DESC_REQ[0] >= 128:
+		frame_header = dissect_short_frame_header(recvd_DESC_REQ[:2]) #since short header size is 2 bytes
+		desc_req_msg_list_raw = recvd_DESC_REQ[2:] #received desc_req_msgs are from 2 bytes onwards
+
+	else:
+		frame_header = dissect_short_frame_header(recvd_DESC_REQ[:4]) #since short header size is 4 bytes
+		desc_req_msg_list_raw = recvd_DESC_REQ[4:] #received dev_adv_msgs are from 4 bytes onwards
+	
+	desc_req_msg_lis_raw_size = len(desc_req_msg_list_raw)
+	desc_req_msg_list = []
+
+	#iterate through every 6 bytes since the length of a desc_req_msg is 6 bytes
+	# 4 bytes = destination local id and 2 bytes = receiver iid
+	for i in range(0, desc_req_msg_lis_raw_size, 6):
+		x = dissect_DESC_REQ_msg(desc_req_msg_list_raw[i:(i + 6)]) #dissects the 6 bytes
+		desc_req_msg_list.append(x)
+
+	desc_req = frames.DESC_REQ(frame_header, desc_req_msg_list)
+
+	return desc_req
+
+def DESC_ADV_msg_to_bytes(DESC_ADV_msg):
 	pass
 
+def dissect_DESC_ADV_msg(recvd_DESC_ADV_msg):
+	pass
+
+def DESC_ADV_to_bytes(DESC_ADV):
+	pass
+
+def dissect_DESC_ADV(recvd_DESC_ADV):
+	pass
+
+def HASH_REQ_msg_to_bytes(HASH_REQ_msg):
+	destination_local_id = HASH_REQ_msg.dest_local_id
+	receiver_iid = HASH_REQ_msg.receiver_iid
+
+	hash_req_msg_bytes = struct.pack("!IH", destination_local_id, receiver_iid)
+
+	return hash_req_msg_bytes
+
+def dissect_HASH_REQ_msg(recvd_HASH_REQ_msg):
+	recvd_hash_req_msg = struct.unpack("!IH", recvd_HASH_REQ_msg)
+
+	destination_local_id = recvd_hash_req_msg[0]
+	receiver_iid = recvd_hash_req_msg[1]
+
+	hash_req_msg = frames.HASH_REQ_msg(destination_local_id, receiver_iid)
+
+	return hash_req_msg
+
+def HASH_REQ_to_bytes(HASH_REQ):
+	HASH_REQ = set_frame_header(HASH_REQ)
+	frame_header = is_short_header(HASH_REQ.frm_header)
+
+
+	hash_req_msg_list = b''
+	for i in HASH_REQ.hash_msgs:
+		hash_req_msg_list = hash_req_msg_list + HASH_REQ_msg_to_bytes(i)
+
+	hash_req_bytes = frame_header + hash_req_msg_list
+
+	return hash_req_bytes
+
+def dissect_HASH_REQ(recvd_HASH_REQ):
+	if recvd_HASH_REQ[0] >= 128:
+		frame_header = dissect_short_frame_header(recvd_HASH_REQ[:2]) #since short header size is 2 bytes
+		hash_req_msg_list_raw = recvd_HASH_REQ[2:] #received hash_req_msgs are from 2 bytes onwards
+
+	else:
+		frame_header = dissect_short_frame_header(recvd_HASH_REQ[:4]) #since long header size is 4 bytes
+		hash_req_msg_list_raw = recvd_HASH_REQ[4:] #received hash_req_msgs are from 4 bytes onwards
+	
+	hash_req_msg_list_raw_size = len(hash_req_msg_list_raw)
+	hash_req_msg_list = []
+
+	#iterate through every 6 bytes since the length of a hash_req_msg is 6 bytes
+	# 4 bytes = destination local id and 2 bytes = receiver iid
+	for i in range(0, hash_req_msg_list_raw_size, 6):
+		x = dissect_HASH_REQ_msg(hash_req_msg_list_raw[i:(i + 6)]) #dissects the 6 bytes
+		hash_req_msg_list.append(x)
+
+	hash_req = frames.HASH_REQ(frame_header, hash_req_msg_list)
+
+	return hash_req
+
+def HASH_ADV_to_bytes(HASH_ADV):
+	HASH_ADV = set_frame_header(HASH_ADV) 
+	frame_header = short_frame_header_to_bytes(HASH_ADV.frm_header)
+	
+	transmitterIID4x_and_descriptionHash = struct.pack("!H20s", HASH_ADV.trans_iid4x, HASH_ADV.desc_hash)
+
+	hash_adv_bytes = frame_header + transmitterIID4x_and_descriptionHash
+
+	return hash_adv_bytes
+
+def dissect_HASH_ADV(recvd_HASH_ADV):
+	frame_header = dissect_short_frame_header(recvd_HASH_ADV[:2])
+	transmitterIID4x_and_descriptionHash = recvd_HASH_ADV[2:]
+
+	transmitterIID4x_and_descriptionHash = struct.unpack("!H20s", transmitterIID4x_and_descriptionHash)
+	
+	transmitterIID4x = transmitterIID4x_and_descriptionHash[0]
+	description_hash = transmitterIID4x_and_descriptionHash[1]
+
+	hash_adv = frames.HASH_ADV(frame_header, transmitterIID4x, description_hash)
+
+	return hash_adv
+
+def OGM_ACK_to_bytes(OGM_ACK):
+	OGM_ACK = set_frame_header(OGM_ACK)
+	frame_header = short_frame_header_to_bytes(OGM_ACK.frm_header)
+
+	ogmDestination_and_aggregationSequenceNumber = struct.pack("BB", OGM_ACK.ogm_dest, OGM_ACK.agg_sqn_no)
+
+	ogm_ack_in_bytes = frame_header + ogmDestination_and_aggregationSequenceNumber
+
+	return ogm_ack_in_bytes
+
+def dissect_OGM_ACK(recvd_OGM_ACK):
+	frame_header = dissect_short_frame_header(recvd_OGM_ACK[:2])
+	ogmDestination_and_aggregationSequenceNumber = recvd_OGM_ACK[2:]
+
+	ogmDestination_and_aggregationSequenceNumber = struct.unpack("!BB", ogmDestination_and_aggregationSequenceNumber)
+	
+	ogm_destination = ogmDestination_and_aggregationSequenceNumber[0]
+	aggregation_sequence_number = ogmDestination_and_aggregationSequenceNumber[1]
+
+	ogm_ack = frames.OGM_ACK(frame_header, ogm_destination, aggregation_sequence_number)
+
+	return ogm_ack
 
 
 
