@@ -1,12 +1,13 @@
-from importlib.machinery import OPTIMIZED_BYTECODE_SUFFIXES
+import time
+import psutil
+import socket
 import ipaddress
 from sys import getsizeof
-import time
 from collections import deque
 from dataclasses import dataclass, field
+from importlib.machinery import OPTIMIZED_BYTECODE_SUFFIXES
 # import bmx
 import frames
-import miscellaneous
 
 start_time = time.perf_counter()
 
@@ -133,94 +134,161 @@ class link_node:
             self.hello_time_max = (time.perf_counter() - start_time) * 1000     # bmx.start_time
             self.hello_sqn_max = frame.HELLO_sqn_no
 
-@dataclass
-class if_link_node:
-    update_sqn: int = 0
-    changed: int = 0
-    index: int = 0
-    type: int = 0
-    alen: int = 0
-    flags: int = 0
+# @dataclass
+# class if_link_node:
+#     update_sqn: int = 0
+#     changed: int = 0
+#     index: int = 0
+#     type: int = 0
+#     alen: int = 0
+#     flags: int = 0
 
-    addr: int = 0                                                               # ADDR_T
-    name: str = ""
+#     addr: int = 0                                                               # ADDR_T
+#     name: str = ""
 
-    if_addr_tree: list = field(default_factory=lambda:[])                       # avl_tree
+#     if_addr_tree: list = field(default_factory=lambda:[])                       # avl_tree
 
-@dataclass
-class if_addr_node:
-    iln: if_link_node
-    dev: list = field(default_factory=lambda:[])                                # dev_node
-    rta_tb: list = field(default_factory=lambda:[])                             # array[]
-
-
-
-@dataclass
-class dev_ip_key:
-    ip: ipaddress.ip_address = ipaddress.ip_address('0.0.0.0')                  # copy of dev.if_llocal_addr.ip_addr
-    idx: int = -1                                                               # link_key.dev_idx (DEVADV_IDX_T)
+# @dataclass
+# class if_addr_node:
+#     iln: if_link_node
+#     dev: list = field(default_factory=lambda:[])                                # dev_node
+#     rta_tb: list = field(default_factory=lambda:[])                             # array[]
 
 
-@dataclass
-class dev_node:
-    if_link: int                                                                # if_link_node
-    if_llocal_addr: int                                                         # if_addr_node
-    if_global_addr: int                                                         # if_addr_node
 
-    hard_conf_changed: int
-    soft_conf_changed: int
-    autoIP6configured: int                                                      # net_key
-    autoIP6ifindex: int
-    active: int
-    activate_again: int
-    activate_cancelled: int
-    tmp_flag_for_to_be_send_adv: int
+# @dataclass
+# class dev_ip_key:
+#     ip: ipaddress.ip_address = ipaddress.ip_address('0.0.0.0')                  # copy of dev.if_llocal_addr.ip_addr
+#     idx: int = -1                                                               # link_key.dev_idx (DEVADV_IDX_T)
 
-    dev_adv_msg: int
 
-    ifname_label: str                                                           # IFNAME_T
-    ifname_device: str                                                          # IFNAME_T
+# @dataclass
+# class dev_node:
+#     if_link: int                                                                # if_link_node
+#     if_llocal_addr: int                                                         # if_addr_node
+#     if_global_addr: int                                                         # if_addr_node
 
-    # dummy_lndev: link_dev_node
+#     hard_conf_changed: int
+#     soft_conf_changed: int
+#     autoIP6configured: int                                                      # net_key
+#     autoIP6ifindex: int
+#     active: int
+#     activate_again: int
+#     activate_cancelled: int
+#     tmp_flag_for_to_be_send_adv: int
+
+#     dev_adv_msg: int
+
+#     ifname_label: str                                                           # IFNAME_T
+#     ifname_device: str                                                          # IFNAME_T
+
+#     # dummy_lndev: link_dev_node
     
-    llip_key: dev_ip_key
-    mac: int                                                                    # MAC_T
+#     llip_key: dev_ip_key
+#     mac: int                                                                    # MAC_T
 
-    ip_llocal_str: str                                                          # array[IPX_STR_LEN]
-    ip_global_str: str                                                          # array[IPX_STR_LEN]
-    ip_brc_str: str                                                             # array[IPX_STR_LEN]
+#     ip_llocal_str: str                                                          # array[IPX_STR_LEN]
+#     ip_global_str: str                                                          # array[IPX_STR_LEN]
+#     ip_brc_str: str                                                             # array[IPX_STR_LEN]
 
-    llocal_unicast_addr: int                                                    # sockaddr_storage
-    tx_netwbrc_addr: int                                                        # sockaddr_storage
+#     llocal_unicast_addr: int                                                    # sockaddr_storage
+#     tx_netwbrc_addr: int                                                        # sockaddr_storage
 
-    unicast_sock: int
-    rx_mcast_sock: int
-    rx_fullbrc_sock: int
+#     unicast_sock: int
+#     rx_mcast_sock: int
+#     rx_fullbrc_sock: int
 
-    link_hello_sqn: int                                                         # HELLO_SQN_T
+#     link_hello_sqn: int                                                         # HELLO_SQN_T
 
-    tx_task_lists: list                                                         # array of scheduled frames (list_head - array[FRAME_TYPE_ARRSZ])
-    tx_task_interval_tree: int                                                  # avl_tree
+#     tx_task_lists: list                                                         # array of scheduled frames (list_head - array[FRAME_TYPE_ARRSZ])
+#     tx_task_interval_tree: int                                                  # avl_tree
 
-    announce: int
+#     announce: int
 
-    linklayer_conf: int
-    linklayer: int
+#     linklayer_conf: int
+#     linklayer: int
 
-    channel_conf: int
-    channel: int
+#     channel_conf: int
+#     channel: int
 
-    umetric_min_conf: int                                                       # UMETRIC_T
-    umetric_min: int                                                            # UMETRIC_T
+#     umetric_min_conf: int                                                       # UMETRIC_T
+#     umetric_min: int                                                            # UMETRIC_T
 
-    umetric_max_conf: int                                                       # UMETRIC_T
-    umetric_max: int                                                            # UMETRIC_T
+#     umetric_max_conf: int                                                       # UMETRIC_T
+#     umetric_max: int                                                            # UMETRIC_T
 
-    global_prefix_conf_: int                                                    # net_key
-    llocal_prefix_conf_: int                                                    # net_key
+#     global_prefix_conf_: int                                                    # net_key
+#     llocal_prefix_conf_: int                                                    # net_key
     
-    plugin_data: list                                                           # void*
+#     plugin_data: list                                                           # void*
 
+@dataclass
+class net_info:
+    name: str = None
+    idx: int = 0
+    ipv4: ipaddress.ip_address = None
+    ipv6: ipaddress.ip_address = None
+    mac: str = None
+    channel: int = 0
+    umetric_min: int = None
+    umetric_max: int = None
+
+
+netlist = []
+dev_id = 1
+
+def check_interface(name, interfaces):
+    for itf in interfaces:
+        if((itf.name == name) and (itf.idx > 0)):
+            return itf.idx - 1
+    return -1
+
+for x, y in psutil.net_if_addrs().items():
+    id = check_interface(x, netlist)
+    if(id == -1):
+        new = 1
+        interface = net_info(name = x, idx = dev_id)
+    else:
+        interface = netlist[id]
+    for z in y:
+        # print('\t', z, type(z))
+        # print('\t\t', z.family)
+        # print('\t\t', z.address)
+        if(z.family is socket.AF_INET):
+            interface.ipv4 = z.address
+        elif(z.family is socket.AF_INET6):
+            interface.ipv6 = z.address
+        else:
+            interface.mac = z.address
+    if((interface.mac == "00:00:00:00:00:00") and (interface.ipv6 == '::1')):    # linux loopback interface
+        interface.mac = None
+    if((interface.umetric_min is None) and (interface.umetric_max is None)):
+        if((interface.mac is None) and (interface.ipv6 == '::1')):              # loopback interface
+            interface.umetric_min = 128849018880    # UMETRIC_MAX
+            interface.umetric_max = 128849018880    # UMETRIC_MAX
+        elif((interface.name[0] == 'e') or (interface.name[0] == 'E')):         # ethernet
+            interface.channel = 255
+            interface.umetric_min = 1000000000      # DEF_DEV_BITRATE_MIN_LAN
+            interface.umetric_max = 1000000000      # DEF_DEV_BITRATE_MAX_LAN
+        else:                                                                   # wireless
+            interface.umetric_min = 6000000         # DEF_DEV_BITRATE_MIN_WIFI
+            interface.umetric_max = 56000000        # DEF_DEV_BITRATE_MAX_WIFI
+    if(id == -1):    
+        netlist.append(interface)
+        dev_id = dev_id + 1
+    # print(interface, '\n')
+
+for x in netlist:
+    print(x.idx," - '",x.name,"':",sep='')
+    if(x.ipv4 != None):
+        print("    IPv4:",'\t', x.ipv4)
+    if(x.ipv6 != None):
+        print("    IPv6:",'\t', x.ipv6)
+    if(x.mac != None):
+        print("    MAC:",'\t', x.mac)
+    print("    channel:",'\t', x.channel)
+    print("    umetric_min:", x.umetric_min)
+    print("    umetric_max:", x.umetric_max)
 
 @dataclass
 class link_dev_key:
