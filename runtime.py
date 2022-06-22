@@ -1,4 +1,5 @@
 import ipaddress
+from pickle import TRUE
 import time
 from sys import getsizeof
 from collections import deque
@@ -6,12 +7,14 @@ from dataclasses import dataclass, field
 import socket
 
 from numpy import append
+
+import psutil
+import subprocess
 # import bmx
 # import nodes
 # import frames
 # import miscellaneous
 
-import psutil
 
 # # TESTING
 # ln_head = frames.header(0,0,0,0)
@@ -145,10 +148,9 @@ class net_info:
     ipv4: ipaddress.ip_address = None
     ipv6: ipaddress.ip_address = None
     mac: str = None
-    # name: str = ""
-    # ipv4: ipaddress.ip_address = ipaddress.ip_address('0.0.0.0')
-    # ipv6: ipaddress.ip_address = ipaddress.ip_address('1:1::1')
-    # mac: str = ""
+    channel: int = 0
+    umetric_min: int = None
+    umetric_max: int = None
 
 netlist = []
 for x, y in psutil.net_if_addrs().items():
@@ -157,12 +159,26 @@ for x, y in psutil.net_if_addrs().items():
         # print('\t', z, type(z))
         # print('\t\t', z.family)
         # print('\t\t', z.address)
-        if(z.family is psutil.AF_LINK):
+        if((z.family is psutil.AF_LINK) or (z.family is socket.AF_PACKET)):
             interface.mac = z.address
         elif(z.family is socket.AF_INET):
             interface.ipv4 = z.address
         elif(z.family is socket.AF_INET6):
             interface.ipv6 = z.address
+    if((interface.mac == "00:00:00:00:00:00") and (interface.ipv6 == '::1')):    # linux loopback interface
+        interface.mac = None
+    if((interface.umetric_min is None) and (interface.umetric_max is None)):
+        if((interface.mac is None) and (interface.ipv6 == '::1')):              # loopback interface
+            interface.umetric_min = 128849018880    # UMETRIC_MAX
+            interface.umetric_max = 128849018880    # UMETRIC_MAX
+        elif((interface.name[0] == 'e') or (interface.name[0] == 'E')):         # ethernet
+            interface.channel = 255
+            interface.umetric_min = 1000000000      # DEF_DEV_BITRATE_MIN_LAN
+            interface.umetric_max = 1000000000      # DEF_DEV_BITRATE_MAX_LAN
+        else:                                                                   # wireless
+            interface.umetric_min = 6000000         # DEF_DEV_BITRATE_MIN_WIFI
+            interface.umetric_max = 56000000        # DEF_DEV_BITRATE_MAX_WIFI
+
     netlist.append(interface)
     # print(interface, '\n')
 
@@ -174,3 +190,13 @@ for x in netlist:
         print("    IPv6:",'\t', x.ipv6)
     if(x.mac != None):
         print("    MAC:",'\t', x.mac)
+    print("    channel:",'\t', x.channel)
+    print("    umetric_min:", x.umetric_min)
+    print("    umetric_max:", x.umetric_max)
+
+# devices = subprocess.check_output(['netsh','wlan','show','network'])
+# devices = devices.decode('ascii')
+# devices = devices.replace("\r","")
+
+# print(subprocess.check_output("iwconfig"))
+# print(psutil.net_if_addrs())
