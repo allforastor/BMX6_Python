@@ -8,6 +8,7 @@ import time
 from datetime import datetime
 from dataclasses import dataclass
 import threading
+import struct
 
 start_time = time.perf_counter()
 # print(start_time)
@@ -69,7 +70,7 @@ def send(group, port, ttl, msg):
 
 
 
-
+#creating packet together with the packetheader
 def create_packet(packetheader, frameslist):
 	frames_bytes = b''
 
