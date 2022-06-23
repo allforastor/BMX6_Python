@@ -10,10 +10,10 @@ from numpy import append
 
 import psutil
 import subprocess
-# import bmx
-# import nodes
-# import frames
-# import miscellaneous
+import bmx
+import nodes
+import frames
+import miscellaneous
 
 
 # # TESTING
@@ -35,18 +35,19 @@ import subprocess
 #     # node_list.append(nodes.local_node(local_id = loid))
 #     # local_IDs.append(id)
 
-# def check_if_existing(id):
-#     for x in local_IDs:
-#         if(local_IDs[x] == id):     # if the ID is in the node_IIDs list, then it exists
-#             return x
-#     return -1
+# def check_if_exists(object, object_list):
+#     for x in object_list:
+#         if(object_list[x] == object):   # if the object is in the list, then it exists
+#             return x                    # index is returned
+#     return -1                           # object not found 
 
 # def packet_received(self):
 #     # check if the HELLO_ADV frame is from a new node or not
-#     exists = check_if_existing(self.header.local_id)
+#     exists = check_if_exists(self.header.local_id, local_IDs)
 #     if(exists == -1):               # new node (INITIALIZATION and UPDATES)
 #         local = nodes.local_node(local_id = self.header.local_id)    # initialize local_node
-#         local.pkt_received(self.header)                              # update packet-related class attributes
+#         local.pkt_received(self.header)
+#         local.link_tree.append(nodes.link_node(local = local))                              # update packet-related class attributes
 #         for frame in self.frames:
 #             if(type(frame) == frames.HELLO_ADV):    # HELLO_ADV
 #                 for ln in local.link_tree:
@@ -55,7 +56,8 @@ import subprocess
 #                 local.link_adv_received(frame)
 #                 for msg in local.link_adv:
 #                     link_key = nodes.link_node_key(msg.peer_local_id, msg.peer_dev_index)
-#                     local.link_tree.append(nodes.link_node(local = local, key = link_key))
+#                     for link in local.link_tree:
+#                         if()
                 
 #                 for ln in local.link_tree:  # has to check first how many lndev_nodes there are and where to add
 #                     lndev_key = nodes.link_dev_key
@@ -142,4 +144,69 @@ import subprocess
 # print_all(node_list)
 # # print("IIDs:", node_IIDs)
 
+if_list = []
 
+def get_interfaces(iflist):
+    dev_id = len(iflist) + 1
+
+    def check_interface(name, iflist):
+        for itf in iflist:
+            if((itf.name == name) and (itf.idx > 0)):
+                return itf.idx - 1
+        return -1
+
+    for x, y in psutil.net_if_addrs().items():
+        id = check_interface(x, iflist)
+        if(id == -1):
+            interface = nodes.net_info(name = x, idx = dev_id)
+        else:
+            interface = iflist[id]
+        for z in y:
+            # print('\t', z, type(z))
+            # print('\t\t', z.family)
+            # print('\t\t', z.address)
+            if(z.family is socket.AF_INET):
+                interface.ipv4 = z.address
+            elif(z.family is socket.AF_INET6):
+                interface.ipv6 = z.address
+            else:
+                interface.mac = z.address
+        if((interface.mac == "00:00:00:00:00:00") and (interface.ipv6 == '::1')):    # linux loopback interface
+            interface.mac = None
+        if((interface.umetric_min is None) and (interface.umetric_max is None)):
+            if((interface.mac is None) and (interface.ipv6 == '::1')):              # loopback interface
+                interface.umetric_min = 128849018880    # UMETRIC_MAX
+                interface.umetric_max = 128849018880    # UMETRIC_MAX
+            elif((interface.name[0] == 'e') or (interface.name[0] == 'E')):         # ethernet
+                interface.channel = 255
+                interface.umetric_min = 1000000000      # DEF_DEV_BITRATE_MIN_LAN
+                interface.umetric_max = 1000000000      # DEF_DEV_BITRATE_MAX_LAN
+            else:                                                                   # wireless
+                interface.umetric_min = 6000000         # DEF_DEV_BITRATE_MIN_WIFI
+                interface.umetric_max = 56000000        # DEF_DEV_BITRATE_MAX_WIFI
+        if(id == -1):    
+            iflist.append(interface)
+            dev_id = dev_id + 1
+        else:
+            iflist[id] = interface
+        # print(interface, '\n')
+
+def print_interfaces(iflist):
+    for x in iflist:
+        print(x.idx," - '",x.name,"':",sep='')
+        if(x.ipv4 != None):
+            print("    IPv4:",'\t', x.ipv4)
+        if(x.ipv6 != None):
+            print("    IPv6:",'\t', x.ipv6)
+        if(x.mac != None):
+            print("    MAC:",'\t', x.mac)
+        print("    channel:",'\t', x.channel)
+        print("    umetric_min:", x.umetric_min)
+        print("    umetric_max:", x.umetric_max)
+    print('\n')
+
+get_interfaces(if_list)
+print_interfaces(if_list)
+time.sleep(10)
+get_interfaces(if_list)
+print_interfaces(if_list)

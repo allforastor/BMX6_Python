@@ -234,67 +234,12 @@ class net_info:
     umetric_max: int = None
 
 
-netlist = []
-dev_id = 1
-
-def check_interface(name, interfaces):
-    for itf in interfaces:
-        if((itf.name == name) and (itf.idx > 0)):
-            return itf.idx - 1
-    return -1
-
-for x, y in psutil.net_if_addrs().items():
-    id = check_interface(x, netlist)
-    if(id == -1):
-        new = 1
-        interface = net_info(name = x, idx = dev_id)
-    else:
-        interface = netlist[id]
-    for z in y:
-        # print('\t', z, type(z))
-        # print('\t\t', z.family)
-        # print('\t\t', z.address)
-        if(z.family is socket.AF_INET):
-            interface.ipv4 = z.address
-        elif(z.family is socket.AF_INET6):
-            interface.ipv6 = z.address
-        else:
-            interface.mac = z.address
-    if((interface.mac == "00:00:00:00:00:00") and (interface.ipv6 == '::1')):    # linux loopback interface
-        interface.mac = None
-    if((interface.umetric_min is None) and (interface.umetric_max is None)):
-        if((interface.mac is None) and (interface.ipv6 == '::1')):              # loopback interface
-            interface.umetric_min = 128849018880    # UMETRIC_MAX
-            interface.umetric_max = 128849018880    # UMETRIC_MAX
-        elif((interface.name[0] == 'e') or (interface.name[0] == 'E')):         # ethernet
-            interface.channel = 255
-            interface.umetric_min = 1000000000      # DEF_DEV_BITRATE_MIN_LAN
-            interface.umetric_max = 1000000000      # DEF_DEV_BITRATE_MAX_LAN
-        else:                                                                   # wireless
-            interface.umetric_min = 6000000         # DEF_DEV_BITRATE_MIN_WIFI
-            interface.umetric_max = 56000000        # DEF_DEV_BITRATE_MAX_WIFI
-    if(id == -1):    
-        netlist.append(interface)
-        dev_id = dev_id + 1
-    # print(interface, '\n')
-
-for x in netlist:
-    print(x.idx," - '",x.name,"':",sep='')
-    if(x.ipv4 != None):
-        print("    IPv4:",'\t', x.ipv4)
-    if(x.ipv6 != None):
-        print("    IPv6:",'\t', x.ipv6)
-    if(x.mac != None):
-        print("    MAC:",'\t', x.mac)
-    print("    channel:",'\t', x.channel)
-    print("    umetric_min:", x.umetric_min)
-    print("    umetric_max:", x.umetric_max)
-
 @dataclass
 class link_dev_key:
     link: int = 0 #link_node = link_node()                                               # link that uses the interface
     # dev: dev_node = dev_node()                                                # outgoing interface for transmiting (dev_node)
 
+    
 
 # avl_tree link_dev_tree
 
