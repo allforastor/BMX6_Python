@@ -2,6 +2,7 @@ import string
 from dataclasses import dataclass, field
 import socket
 import re, uuid
+import ipaddress
 
 @dataclass
 class header:

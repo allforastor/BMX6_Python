@@ -9,6 +9,7 @@ from datetime import datetime
 from dataclasses import dataclass
 import threading
 import struct
+import binascii
 
 start_time = time.perf_counter()
 # print(start_time)
