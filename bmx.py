@@ -125,6 +125,7 @@ def create_packet(packetheader, frameslist):
 
 	return created_packet
 
+#dissecting packet
 def dissect_packet(recvd_packet):
 	curr_pos = 17
 	packetheader = recvd_packet[:curr_pos]
