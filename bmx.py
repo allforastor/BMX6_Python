@@ -98,7 +98,7 @@ def create_packet(packetheader, frameslist):
 			frames_bytes += DESC_REQ_to_bytes(i)
 
 		elif type(i) == frames.DESC_ADV:
-			pass
+			frames_bytes += DESC_ADV_to_bytes(i)
 
 		elif type(i) == frames.HASH_REQ:
 			frames_bytes += HASH_REQ_to_bytes(i)
@@ -110,7 +110,7 @@ def create_packet(packetheader, frameslist):
 			frames_bytes += OGM_ACK_to_bytes(i)
 
 		elif type(i) == frames.OGM_ADV:
-			pass
+			frames_bytes += OGM_ADV_to_bytes(i)
 
 
 	len_of_all_frames = len(frames_bytes)
@@ -125,7 +125,6 @@ def create_packet(packetheader, frameslist):
 
 	return created_packet
 
-#dissecting packet
 def dissect_packet(recvd_packet):
 	curr_pos = 17
 	packetheader = recvd_packet[:curr_pos]
@@ -213,6 +212,9 @@ def dissect_packet(recvd_packet):
 
 		elif frameheader_unkown.frm_type == 12:
 			ogm_adv_frame = recvd_packet[curr_pos:curr_pos + frameheader_unkown.frm_len]
+			ogm_adv_frame = dissect_OGM_ADV(ogm_adv_frame)
+			frameslist.append(ogm_adv_frame)
+			curr_pos += ogm_adv_frame.frm_header.frm_len
 
 	packetrecvd = (packetheader, frameslist)
 
@@ -323,7 +325,7 @@ def set_frame_header(frame):
 	elif type(frame) == frames.RP_ADV:
 		frame_type = 2
 		reserved = 0
-		if len(frame.rp_msgs) > 255 - short_frame_header_length:
+		if len(frame.rp_msgs)*1 + short_frame_header_length > 255:
 			short_frame = 0
 			frame_length = long_frame_header_length + 1*(len(frame.rp_msgs))
 			created_frame = frames.RP_ADV(frames.long_header(short_frame, relevant_frame, frame_type, reserved, frame_length), frame.rp_msgs)
@@ -343,7 +345,7 @@ def set_frame_header(frame):
 		frame_type = 4
 		reserved = 0
 		device_sequence_no_reference_length = 2
-		if len(frame.link_msgs) > 255 - short_frame_header_length:
+		if len(frame.link_msgs)*6 + device_sequence_no_reference_length + short_frame_header_length > 255:
 			short_frame = 0
 			frame_length = long_frame_header_length + device_sequence_no_reference_length + 6*(len(frame.link_msgs)) #since every link msg is 6 bytes in length
 			created_frame = frames.LINK_ADV(frames.long_header(short_frame, relevant_frame, frame_type, reserved, frame_length), frame.dev_sqn_no_ref, frame.link_msgs)
@@ -363,7 +365,7 @@ def set_frame_header(frame):
 		frame_type = 6
 		reserved = 0
 		device_sequence_no_length = 2
-		if len(frame.dev_msgs) > 255 - device_sequence_no_length - short_frame_header_length:
+		if len(frame.dev_msgs)*26 + device_sequence_no_length + short_frame_header_length > 255:
 			short_frame = 0
 			frame_length = long_frame_header_length + device_sequence_no_length + 26*(len(frame.dev_msgs))
 			created_frame = frames.DEV_ADV(frames.long_header(short_frame, relevant_frame, reserved, frame_length), frame.dev_sqn_no, frame.dev_msgs)
@@ -376,7 +378,7 @@ def set_frame_header(frame):
 	elif type(frame) == frames.DESC_REQ:
 		frame_type = 7
 		reserved = 0
-		if len(frame.desc_msgs) > 255 - short_frame_header_length:
+		if len(frame.desc_msgs)*6 + short_frame_header_length > 255:
 			short_frame = 0
 			frame_length = long_frame_header_length + 6*(len(frame.desc_msgs))
 			created_frame = frames.DESC_REQ(frames.long_header(short_frame, relevant_frame, frame_type, reserved, frame_length), frame.desc_msgs)
@@ -391,7 +393,7 @@ def set_frame_header(frame):
 	elif type(frame) == frames.HASH_REQ:
 		frame_type = 9
 		reserved = 0
-		if len(frame.hash_msgs) > 255 - short_frame_header_length:
+		if len(frame.hash_msgs)*6 + short_frame_header_length > 255:
 			short_frame = 0
 			frame_length = long_frame_header_length + 6*(len(frame.hash_msgs))
 			created_frame = frames.HASH_REQ(frames.long_header(short_frame, relevant_frame, frame_type, reserved, frame_length), frame.hash_msgs)
@@ -410,15 +412,31 @@ def set_frame_header(frame):
 
 	elif type(frame) == frames.OGM_ACK:
 		frame_type = 11
-		short_frame = 1
-		ogm_destination = frame.ogm_dest
-		aggregation_sequence_number = frame.agg_sqn_no
-		frame_length = short_frame_header_length + 1 + 1 # size of the ogm_destination = 1 byte and size of aggregation_sequence_number is 1 byte
-		created_frame = frames.OGM_ACK(frames.short_header(short_frame, relevant_frame, frame_type, frame_length), ogm_destination, aggregation_sequence_number)
+		reserved = 0
+		if len(frame.ogm_ack_msgs)*2 + short_frame_header_length > 255:
+			short_frame = 0
+			frame_length = long_frame_header_length + 2*(len(frame.ogm_ack_msgs)) #since every ogm_ack msg is 2 bytes in length
+			created_frame = frames.OGM_ACK(frames.long_header(short_frame, relevant_frame, frame_type, reserved, frame_length), frame.ogm_ack_msgs)
+		else:
+			short_frame = 1
+			frame_length = short_frame_header_length + 2*(len(frame.ogm_ack_msgs)) #since every ogm_ack msg is 2 bytes in length
+			created_frame = frames.OGM_ACK(frames.short_header(short_frame, relevant_frame, frame_type, frame_length), frame.ogm_ack_msgs)
 
 	elif type(frame) == frames.OGM_ADV:
 		frame_type = 12
-
+		reserved = 0
+		aggregation_sequence_number_length = 1
+		ogm_destination_array_size_length = 1
+		ogm_destination_array_length = len(frame.ogm_dest_arr)
+		if len(frame.ogm_adv_msgs)*4 + short_frame_header_length + aggregation_sequence_number_length + ogm_destination_array_size_length + ogm_destination_array_length > 255:
+			short_frame = 0
+			frame_length = long_frame_header_length + aggregation_sequence_number_length + ogm_destination_array_size_length + ogm_destination_array_length + 4*(len(frame.ogm_adv_msgs))
+			created_frame = frames.OGM_ADV(frames.long_header(short_frame, relevant_frame, frame_type, reserved, frame_length), frame.ogm_adv_msgs)
+		else:
+			short_frame = 1
+			frame_length = short_frame_header_length + aggregation_sequence_number_length + ogm_destination_array_size_length + ogm_destination_array_length + 4*(len(frame.ogm_adv_msgs))
+			created_frame = frames.OGM_ADV(frames.short_header(short_frame, relevant_frame, frame_type, frame_length), frame.agg_sqn_no, 
+											frame.ogm_dest_arr_size, frame.ogm_dest_arr, frame.ogm_adv_msgs)
 
 	return created_frame
 	
@@ -435,9 +453,9 @@ def HELLO_ADV_to_bytes(HELLO_ADV):
 	frame_header = short_frame_header_to_bytes(HELLO_ADV.frm_header)
 	hello_sqn_no = struct.pack("!H", HELLO_ADV.HELLO_sqn_no)
 
-	hello_adv = frame_header + hello_sqn_no
+	hello_adv_bytes = frame_header + hello_sqn_no
 
-	return hello_adv
+	return hello_adv_bytes
 
 def dissect_HELLO_ADV(recvd_HELLO_ADV):
 	frame_header = dissect_short_frame_header(recvd_HELLO_ADV[:2])
@@ -460,9 +478,9 @@ def RP_ADV_to_bytes(RP_ADV):
 		rp_adv_msg_list = rp_adv_msg_list + RP_ADV_msg_to_bytes(i)
 	
 	#print(rp_adv_msg_list)
-	rp_adv = frame_header + rp_adv_msg_list
+	rp_adv_bytes = frame_header + rp_adv_msg_list
 
-	return rp_adv
+	return rp_adv_bytes
 
 def dissect_RP_ADV(recvd_RP_ADV):
 	
@@ -495,9 +513,9 @@ def RP_ADV_msg_to_bytes(RP_ADV_msg):
 		ogm_req_and_rp_127range = RP_ADV_msg.rp_127range
 
 	#print(ogm_req_and_rp_127range)
-	rp_adv_msg = struct.pack("!B", ogm_req_and_rp_127range)
+	rp_adv_msg_bytes = struct.pack("!B", ogm_req_and_rp_127range)
 	
-	return rp_adv_msg
+	return rp_adv_msg_bytes
 
 def dissect_RP_ADV_msg(recvd_RP_msg):
 	#combined ogm_req(1 bit) to rp_127range(7 bits)
@@ -520,9 +538,9 @@ def LINK_REQ_to_bytes(LINK_REQ):
 
 	destination_local_id = struct.pack("!I", LINK_REQ.dest_local_id)
 
-	link_req = frame_header + destination_local_id
+	link_req_bytes = frame_header + destination_local_id
 
-	return link_req
+	return link_req_bytes
 
 def dissect_LINK_REQ(recvd_LINK_REQ):
 	frame_header = dissect_short_frame_header(recvd_LINK_REQ[:2])
@@ -540,9 +558,9 @@ def LINK_ADV_msg_to_bytes(LINK_ADV_msg):
 	peer_device_index = LINK_ADV_msg.peer_dev_index
 	peer_local_id = LINK_ADV_msg.peer_local_id
 
-	link_adv_msg = struct.pack("!BBI", transmitter_device_index, peer_device_index, peer_local_id)
+	link_adv_msg_bytes = struct.pack("!BBI", transmitter_device_index, peer_device_index, peer_local_id)
 
-	return link_adv_msg
+	return link_adv_msg_bytes
 
 def dissect_LINK_ADV_msg(recvd_LINK_ADV_msg):
 	recvd_link_adv_msg = struct.unpack("!BBI", recvd_LINK_ADV_msg)
@@ -567,9 +585,9 @@ def LINK_ADV_to_bytes(LINK_ADV):
 	for i in LINK_ADV.link_msgs:
 		link_adv_msg_list += LINK_ADV_msg_to_bytes(i)
 
-	link_adv = frame_header + device_sequence_no_reference + link_adv_msg_list
+	link_adv_bytes = frame_header + device_sequence_no_reference + link_adv_msg_list
 
-	return link_adv
+	return link_adv_bytes
 
 def dissect_LINK_ADV(recvd_LINK_ADV):
 	#frame_header = dissect_frame_header(recvd_LINK_ADV[:2]) #since header size is 2 bytes
@@ -608,9 +626,9 @@ def DEV_REQ_to_bytes(DEV_REQ):
 	frame_header = short_frame_header_to_bytes(DEV_REQ.frm_header)
 	destination_local_id = struct.pack("!I", DEV_REQ.dest_local_id)
 
-	dev_req = frame_header + destination_local_id
+	dev_req_bytes = frame_header + destination_local_id
 
-	return dev_req
+	return dev_req_bytes
 
 def dissect_DEV_REQ(recvd_DEV_REQ):
 	frame_header = dissect_short_frame_header(recvd_DEV_REQ[:2])
@@ -630,10 +648,10 @@ def DEV_ADV_msg_to_bytes(DEV_ADV_msg):
 	local_ipv6 = binascii.unhexlify(DEV_ADV_msg.local_ipv6)
 	mac_address = binascii.unhexlify(DEV_ADV_msg.mac_address)
 
-	dev_adv_msg = struct.pack("!B B B B 16s 6s", device_index, channel, transmitter_bitrate_min, 
+	dev_adv_msg_bytes = struct.pack("!B B B B 16s 6s", device_index, channel, transmitter_bitrate_min, 
 												transmitter_bitrate_max, local_ipv6, mac_address)
 
-	return dev_adv_msg
+	return dev_adv_msg_bytes
 
 def dissect_DEV_ADV_msg(recvd_DEV_ADV_msg):
 	recvd_dev_adv_msg = struct.unpack("!B B B B 16s 6s", recvd_DEV_ADV_msg)
@@ -660,9 +678,9 @@ def DEV_ADV_to_bytes(DEV_ADV):
 	for i in DEV_ADV.dev_msgs:
 		dev_adv_msg_list = dev_adv_msg_list + DEV_ADV_msg_to_bytes(i)
 
-	dev_adv = frame_header + device_sequence_number + dev_adv_msg_list
+	dev_adv_bytes = frame_header + device_sequence_number + dev_adv_msg_list
 
-	return dev_adv
+	return dev_adv_bytes
 
 def dissect_DEV_ADV(recvd_DEV_ADV):
 	if recvd_DEV_ADV[0] >= 128:
@@ -731,7 +749,7 @@ def dissect_DESC_REQ(recvd_DESC_REQ):
 		desc_req_msg_list_raw = recvd_DESC_REQ[2:] #received desc_req_msgs are from 2 bytes onwards
 
 	else:
-		frame_header = dissect_short_frame_header(recvd_DESC_REQ[:4]) #since short header size is 4 bytes
+		frame_header = dissect_long_frame_header(recvd_DESC_REQ[:4]) #since short header size is 4 bytes
 		desc_req_msg_list_raw = recvd_DESC_REQ[4:] #received dev_adv_msgs are from 4 bytes onwards
 	
 	desc_req_msg_lis_raw_size = len(desc_req_msg_list_raw)
@@ -796,7 +814,7 @@ def dissect_HASH_REQ(recvd_HASH_REQ):
 		hash_req_msg_list_raw = recvd_HASH_REQ[2:] #received hash_req_msgs are from 2 bytes onwards
 
 	else:
-		frame_header = dissect_short_frame_header(recvd_HASH_REQ[:4]) #since long header size is 4 bytes
+		frame_header = dissect_long_frame_header(recvd_HASH_REQ[:4]) #since long header size is 4 bytes
 		hash_req_msg_list_raw = recvd_HASH_REQ[4:] #received hash_req_msgs are from 4 bytes onwards
 	
 	hash_req_msg_list_raw_size = len(hash_req_msg_list_raw)
@@ -835,31 +853,169 @@ def dissect_HASH_ADV(recvd_HASH_ADV):
 
 	return hash_adv
 
+def OGM_ACK_msg_to_bytes(OGM_ACK_msg):
+	ogm_destination = OGM_ACK_msg.ogm_dest
+	aggregation_sequence_number = OGM_ACK_msg.agg_sqn_no
+
+	ogm_ack_msg_bytes = struct.pack("!BB", ogm_destination, aggregation_sequence_number)
+
+	return ogm_ack_msg_bytes
+
+def dissect_OGM_ACK_msg(recvd_OGM_ACK_msg):
+	recvd_ogm_ack_msg = struct.unpack("!BB", recvd_OGM_ACK_msg)
+
+	ogm_destination = recvd_ogm_ack_msg[0]
+	aggregation_sequence_number = recvd_ogm_ack_msg[1]
+
+	ogm_ack_msg = frames.OGM_ACK_msg(ogm_destination, aggregation_sequence_number)
+
+	return ogm_ack_msg
+
 def OGM_ACK_to_bytes(OGM_ACK):
 	OGM_ACK = set_frame_header(OGM_ACK)
-	frame_header = short_frame_header_to_bytes(OGM_ACK.frm_header)
+	frame_header = is_short_header(OGM_ACK.frm_header)
 
-	ogmDestination_and_aggregationSequenceNumber = struct.pack("BB", OGM_ACK.ogm_dest, OGM_ACK.agg_sqn_no)
+	ogm_ack_msg_list = b''
+	for i in OGM_ACK.ogm_ack_msgs:
+		ogm_ack_msg_list = ogm_ack_msg_list + OGM_ACK_msg_to_bytes(i)
 
-	ogm_ack_in_bytes = frame_header + ogmDestination_and_aggregationSequenceNumber
+	ogm_ack_bytes = frame_header + ogm_ack_msg_list
 
-	return ogm_ack_in_bytes
+	return ogm_ack_bytes
+
 
 def dissect_OGM_ACK(recvd_OGM_ACK):
-	frame_header = dissect_short_frame_header(recvd_OGM_ACK[:2])
-	ogmDestination_and_aggregationSequenceNumber = recvd_OGM_ACK[2:]
+	if recvd_OGM_ACK[0] >= 128:
+		frame_header = dissect_short_frame_header(recvd_OGM_ACK[:2]) #since short header size is 2 bytes
+		ogm_ack_msg_list_raw = recvd_OGM_ACK[2:] #received ogm_ack_msgs are from 2 bytes onwards
 
-	ogmDestination_and_aggregationSequenceNumber = struct.unpack("!BB", ogmDestination_and_aggregationSequenceNumber)
-	
-	ogm_destination = ogmDestination_and_aggregationSequenceNumber[0]
-	aggregation_sequence_number = ogmDestination_and_aggregationSequenceNumber[1]
+	else:
+		frame_header = dissect_long_frame_header(recvd_OGM_ACK[:4]) #since long header size is 4 bytes
+		ogm_ack_msg_list_raw = recvd_OGM_ACK[4:] #received ogm_ack_msgs are from 4 bytes onwards
 
-	ogm_ack = frames.OGM_ACK(frame_header, ogm_destination, aggregation_sequence_number)
+	ogm_ack_msg_list_raw_size = len(ogm_ack_msg_list_raw)
+	ogm_ack_msg_list = []
+
+	#iterate through every 2 bytes since the length of a ogm_ack_msg is 2 bytes
+	# 1 byte = ogm sequence number and 1 byte = aggregation sequence number
+	for i in range(0, ogm_ack_msg_list_raw_size, 2):
+		x = dissect_OGM_ACK_msg(ogm_ack_msg_list_raw[i:(i + 2)]) #dissects the 2 bytes
+		ogm_ack_msg_list.append(x)
+
+	ogm_ack = frames.OGM_ACK(frame_header, ogm_ack_msg_list)
 
 	return ogm_ack
+	
+
+def OGM_ADV_msg_to_bytes(OGM_ADV_msg):
+	# since mantisse is 5 bits, exponent is 5 bits and iid_offset is 6 bits, combine
+	# them into 2 bytes of data
+
+	# first is to convert to binary without 'ob'
+	mantisse_bin = format(OGM_ADV_msg.metric_mantisse, "05b") # we use "05b" to drop the ob infront and fill the extra bits in left with zero up to 5 bits, sample: ob101 becomes 00101
+	exponent_bin = format(OGM_ADV_msg.metric_exponent, "05b")
+	iid_offset_bin = format(OGM_ADV_msg.iid_offset, "06b")
+
+	# next is to concatenate the binary of the three
+	mantisse_exponent_iidOffset_bin = mantisse_bin + exponent_bin + iid_offset_bin
+
+	# then convert the concatenated binary into int
+	mantisse_exponent_iidOffset_int = int(mantisse_exponent_iidOffset_bin, 2)
+	
+	# get the ogm sqn number
+	ogm_sequence_number = OGM_ADV_msg.ogm_sqn_no
+
+	ogm_adv_msg_bytes = struct.pack("!HH", mantisse_exponent_iidOffset_int, ogm_sequence_number)
+	
+	return ogm_adv_msg_bytes
 
 
+def dissect_OGM_ADV_msg(recvd_OGM_ADV_msg):
+	# unpack received data
+	data = struct.unpack("!HH", recvd_OGM_ADV_msg)
+	
+	# extract from tuple
+	mantisse_exponent_iidOffset_int = data[0]
+	ogm_sequence_number = data[1]
 
+	# convert mantisse_exponent_iidOffset_int into binary without the "ob"
+	mantisse_exponent_iidOffset_bin = format(mantisse_exponent_iidOffset_int, "016b") # use 016b since we know that the lengthh of it is 16 bits, fill extra bits in left up to 16 bits 
+
+	# extract the binary mantisse, exponent and iid_offset then convert each to int
+	mantisse = int(mantisse_exponent_iidOffset_bin[0:5], 2) #first 5 bits
+	exponent = int(mantisse_exponent_iidOffset_bin[5:10], 2) # next 5 bits
+	iid_offset = int(mantisse_exponent_iidOffset_bin[10:16], 2) # the last 6 bits
+
+	ogm_adv_msg = frames.OGM_ADV_msg(mantisse, exponent, iid_offset, ogm_sequence_number)
+
+	return ogm_adv_msg
+
+def OGM_ADV_to_bytes(OGM_ADV):
+	OGM_ADV = set_frame_header(OGM_ADV)
+	frame_header = is_short_header(OGM_ADV.frm_header)
+
+	aggregation_sequence_number = OGM_ADV.agg_sqn_no
+	ogm_destination_array_size = OGM_ADV.ogm_dest_arr_size
+	ogm_destination_array = OGM_ADV.ogm_dest_arr
+
+	aggregationSequenceNumber_ogmDestinationArraySize = struct.pack("BB", aggregation_sequence_number, ogm_destination_array_size)
+	ogm_destination_array_bytes = bytes(ogm_destination_array)
+
+	ogm_adv_msg_list = b''
+	for i in OGM_ADV.ogm_adv_msgs:
+		ogm_adv_msg_list = ogm_adv_msg_list + OGM_ADV_msg_to_bytes(i)
+
+	ogm_adv_bytes = frame_header + aggregationSequenceNumber_ogmDestinationArraySize + ogm_destination_array_bytes + ogm_adv_msg_list
+
+	return ogm_adv_bytes
+
+def dissect_OGM_ADV(recvd_OGM_ADV):
+	
+	if recvd_OGM_ADV[0] >= 128:
+		frame_header = dissect_short_frame_header(recvd_OGM_ADV[:2]) #since short header size is 2 bytes
+
+		aggregationSequenceNumber_ogmDestinationArraySize = recvd_OGM_ADV[2:4]
+		aggregationSequenceNumber_ogmDestinationArraySize = struct.unpack("!BB", aggregationSequenceNumber_ogmDestinationArraySize)
+		
+		aggregation_sequence_number = aggregationSequenceNumber_ogmDestinationArraySize[0]
+		ogm_destination_array_size = aggregationSequenceNumber_ogmDestinationArraySize[1]
+
+		ogm_destination_array = recvd_OGM_ADV[4:4 + ogm_destination_array_size]
+		ogm_destination_array = list(ogm_destination_array)
+		
+		ogm_adv_msg_list_raw = recvd_OGM_ADV[4 + ogm_destination_array_size:] 
+
+
+	else:
+		frame_header = dissect_short_frame_header(recvd_OGM_ADV[:4]) #since long header size is 4 bytes
+		aggregationSequenceNumber_ogmDestinationArraySize = recvd_OGM_ADV[4:6]
+		aggregationSequenceNumber_ogmDestinationArraySize = struct.unpack("!BB", aggregationSequenceNumber_ogmDestinationArraySize)
+		
+		aggregation_sequence_number = aggregationSequenceNumber_ogmDestinationArraySize[0]
+		ogm_destination_array_size = aggregationSequenceNumber_ogmDestinationArraySize[1]
+
+		ogm_destination_array = recvd_OGM_ADV[6:6 + ogm_destination_array_size]
+		ogm_destination_array = list(ogm_destination_array)
+		
+		ogm_adv_msg_list_raw = recvd_OGM_ADV[6 + ogm_destination_array_size:] 
+
+
+	ogm_adv_msg_list_raw_size = len(ogm_adv_msg_list_raw)
+	ogm_adv_msg_list = []
+
+	#iterate through every 4 bytes since the length of a dev_adv_msg is 4 bytes
+	# 5 bits = mantisse, 5 bits = exponent, 6 bits = iid offset, 2 btyes = ogm sqn number 
+	
+	for i in range(0, ogm_adv_msg_list_raw_size, 4):
+		x = dissect_OGM_ADV_msg(ogm_adv_msg_list_raw[i:(i + 4)]) #dissects the 4 bytes
+		ogm_adv_msg_list.append(x)
+
+	ogm_adv = frames.OGM_ADV(frame_header, aggregation_sequence_number, ogm_destination_array_size, ogm_destination_array, ogm_adv_msg_list)
+
+	return ogm_adv
+
+
+	
 
 #adding request frames to frames 2 send list alongside with the unsolicited adv frames
 def send_REQ_frame(REQ_frame, frames2send):
