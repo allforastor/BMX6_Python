@@ -1,8 +1,9 @@
 from dataclasses import dataclass
 import time
+import socket
 import frames
 import nodes
-from frames import header, OGM_ADV, OGM_ADV_msg, OGM_ACK, OGM_ACK_msg   # modified
+from frames import header, OGM_ADV, OGM_ADV_msg, OGM_ACK, OGM_ACK_msg   
 from nodes import local_node, router_node, iid_repos, neigh_node, ogm_aggreg_node, orig_node
 
 
@@ -49,7 +50,7 @@ from nodes import local_node, router_node, iid_repos, neigh_node, ogm_aggreg_nod
 #
 #                                                    C
 #-----------------------------------------------------------------------------------------------------------------
-# ver 6.21.2022 - included ogm frame sqn number testing from ogm aggreg node, polished initialization of frames and msgs
+# ver 6.24.2022 - improvements in neigh node implementation
 #
 
 # creation of msgs and frame    # modified
@@ -129,7 +130,7 @@ nodeB_local.set_iid_offset_for_ogm_msg(ogmframe1, B_neighnodeA)     # set iid_of
 for idx, msgs in enumerate(ogmframe1.ogm_adv_msgs):         # display updated iid offset
     print("IID offsets of the msg{}: {}".format(idx+1, msgs.iid_offset))
 print("Stored IID in node B:", nodeB_local.orig_routes)      # print stored originator info
-neigh_node.get_node_by_neighIID4x(nodeB, B_neighnodeA, nodeA_local.orig_routes)     # obtain hash of originator
+B_neighnodeA.get_node_by_neighIID4x(nodeB, nodeA_local.orig_routes)     # obtain hash of originator     
 
 print("--------------------")
 print("traversing to node C")
@@ -140,11 +141,11 @@ nodeC_local.set_iid_offset_for_ogm_msg(ogmframe1, C_neighnodeB)     # set iid_of
 for idx, msgs in enumerate(ogmframe1.ogm_adv_msgs):         # display updated iid offset
     print("IID offsets of the msg{}: {}".format(idx+1, msgs.iid_offset))
 print("Stored IID in node C:", nodeC_local.orig_routes)      # print stored originator info
-neigh_node.get_node_by_neighIID4x(nodeC, C_neighnodeB, nodeB_local.orig_routes)     # obtain hash of originator
+C_neighnodeB.get_node_by_neighIID4x(nodeC, nodeB_local.orig_routes)     # obtain hash of originator     
 
 ############################################################################################################################
 
-# test aggregated ogm frame sqn no  # modified
+# test aggregated ogm frame sqn no  
 #ogmframe2 = OGM_ADV(header())
 #nodeA_ogm_aggreg = ogm_aggreg_node()
 #nodeA_ogm_aggreg.ogm_advs.extend([ogmframe1, ogmframe2])
@@ -170,4 +171,13 @@ neigh_node.get_node_by_neighIID4x(nodeC, C_neighnodeB, nodeB_local.orig_routes) 
 #
 #for x in result:
 #    print(x.agg_sqn_no)
+##########################################################################################
+
+#nodeA_router = router_node(""," ", 0, "", "", "")
+#ogmframe1.agg_sqn_no = 0
+#ogmframe2.agg_sqn_no = 1
+#ogmframe3.agg_sqn_no = 2
+#nodeA_router.update_self(ogmframe3)
+#print(nodeA_router.ogm_sqn_last)
+
 
