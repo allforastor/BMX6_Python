@@ -340,13 +340,19 @@ class router_node:
     local_key: local_node               # local_node
 
     metric_red: metric_record
-    ogm_sqn_last: int                   # OGM_SQN_T
+    ogm_sqn_last: int                   # latest sqn number of ogm frame # default 0
     ogm_umetric_last: int               # UMETRIC_T
 
     path_metric_best: int               # UMETRIC_T
     path_linkdev_best: link_dev_node
 
-
+    def update_self(self, frame):    # update fields upon receiving OGM_ADV # called everytime receives OGM ADV
+        if type(frame) == frames.OGM_ADV:
+            diff = frame.agg_sqn_no - self.ogm_sqn_last
+            if diff > 1:      # make sure no ogm frame is missed
+                print("Warning! Missed an OGM_ADV frame!")
+            self.ogm_sqn_last = frame.agg_sqn_no
+            
 # avl_tree neigh_trees
 
 @dataclass
@@ -379,9 +385,15 @@ class neigh_node:
     neighIID4x_repos: iid_repos
 
     ogm_new_aggregation_received: time  # TIME_T
-    ogm_aggregation_cleared_max: int    # AGGREG_SQN_T
-    ogm_aggregations_not_acked: list    # array[AGGREG_ARRAY_BYTE_SIZE]
+    ogm_aggregation_cleared_max: int    # AGGREG_SQN_T  # ack'd
+    ogm_aggregations_not_acked: list    # array[AGGREG_ARRAY_BYTE_SIZE] # not ack'd
     ogm_aggregations_received: list     # array[AGGREG_ARRAY_BYTE_SIZE]
+
+    def update_self(self, frame):
+        if type(frame) == frames.OGM_ADV:
+            self.ogm_aggregations_received = frame.agg_sqn_no
+            self.ogm_new_aggregation_received = frame.agg_sqn_no
+        pass
 
     def get_myIID4x_by_neighIID4x(self, neighIID4x):
         myIID4x = self.neighIID4x_repos.arr[neighIID4x]
@@ -390,19 +402,20 @@ class neigh_node:
             return myIID4x
         except KeyError:
             return -1
-        
-    def get_node_by_neighIID4x(self, neigh, neighIID4x):    # added by harold from repos.py
-        if neigh.get_myIID4x_by_neighIID4x(neighIID4x) == -1:
+
+    def get_node_by_neighIID4x(self, my_iid, neighIID4x):    # added by harold from repos.py 
+        if self.get_myIID4x_by_neighIID4x(neighIID4x) == -1:
             # send HASH_REQ message
             print("Neighbor IID unknown. Sending Hash Request")
         else:
-            myIID4x = neigh.get_myIID4x_by_neighIID4x(neighIID4x)
+            myIID4x = self.get_myIID4x_by_neighIID4x(neighIID4x)
 
-            if self.arr[myIID4x] == KeyError:
+            if my_iid.arr[myIID4x] == KeyError:
                 # send DESC_REQ message
                 print("Node description unknown. Sending Description Request")
             else:
-                print("Retrieved hash from local IID repository: " + self.arr[myIID4x])
+                print("Retrieved hash from local IID repository: " + my_iid.arr[myIID4x])
+
 
 # avl_tree orig_tree
 
@@ -443,22 +456,22 @@ class host_metricalgo:
 
 @dataclass
 class orig_node:    
-    global_id: int   # GLOBAL_ID_T (32 len) + PKID_T # default -1
+    global_id: int              # GLOBAL_ID_T (32 len) + PKID_T # default -1
 
-    dhash_n: list  # dhash_node   # default dhash_node
-    desc: int  # **description (MISSING???)
-    desc_tlv_hash_tree: int  # **avl_tree
+    dhash_n: list               # dhash_node   # default dhash_node
+    desc: int  # **description (MISSING???) # default = None # DESC_ADV
+    desc_tlv_hash_tree: int     # **avl_tree
 
-    updated_timestamp: time  # TIME_T   # last time this orig node's description was updated # default
+    updated_timestamp: time     # last time this orig node's description was updated in s # dependedent on last received DESC_ADV
 
-    desc_sqn: int  # DESC_SQN_T (16 bits)
+    desc_sqn: int  # DESC_SQN_T (16 bits) # DESC_ADV
 
-    ogm_sqn_range_min: int  # OGM_SQN_T (16 bits) # default -1
-    ogm_sqn_range_size: int  # OGM_SQN_T (16 bits)  # default -1
+    ogm_sqn_range_min: int      # OGM_SQN_T (16 bits) # default 0  # DESC_ADV
+    ogm_sqn_range_size: int     # OGM_SQN_T (16 bits)  # default 65535    # DESC_ADV
 
     primary_ip: ipaddress.ip_address    # ip of link (IPX_T), default = ipaddress.ip_address('0.0.0.0')
-    primary_ip_str: str  # array[IPX_STR_LEN]
-    blocked: int
+    primary_ip_str: str         # array[IPX_STR_LEN]
+    blocked: int                # indicates whether this node is blocked
     added: int
 
     path_metricalgo: host_metricalgo  # **host_metricalgo (HAROLD) # modified
@@ -477,6 +490,26 @@ class orig_node:
     best_rt_local: router_node
     curr_rt_local: router_node
     curr_rt_linkdev: link_dev_node
+        
+    def update_self(self, frame):     # create global id (160bits)
+        #changed = 0        # use for tracking change in self.desc
+        if type(frame) == frames.DESC_ADV:
+            self.global_id = frame.desc_msgs.name + frame.desc_msgs.pkid  # 32bytes + 20 bytes
+            self.primary_ip = socket.gethostbyname(frame.name)
+            self.desc_sqn = frame.desc_sqn_no
+            #prev_val = self.desc       # check whether desc is changed. dont know how desc is represented
+            #if prev_val !=
+#
+        if type(frame) == frames.OGM_ADV:
+            self.ogm_sqn_max_received = frame.agg_sqn_no
+            self.ogm_sqn_next = frame.agg_sqn_no + 1
+            self.ogm_sqn_send = frame.agg_sqn_no
+
+    #def last_desc_update(self):    # return time in seconds since the last description update
+    #    pass
+
+    #def update_path_metrics(self):      # update seen from line 966, metrics.c
+    #    pass
 
     def ack_ogm_frame(self, frame):  # function to ack ogm frames by creating ogm ack msgs
         if type(frame) == frames.OGM_ADV:  # check if ogm adv is received
@@ -533,7 +566,11 @@ class ogm_aggreg_node:
     sqn: int = 0  # AGGREG_SQN_T (8 bits)
     #tx_attempt: int                    # removed from original
     
-    def set_sqn_no_ogmframes_and_msgs(self):  # set aggregated seq no for ogm frame and sqn_no for msgs 
+    def update_self(self, frame):       # initialize / update self after receiving ogm_adv frames
+        if type(frame) == frames.OGM_ADV:
+            self.ogm_advs.append(frame)
+
+    def set_sqn_no_ogmframes_and_msgs(self):  # set aggregated seq no for ogm frame and sqn_no for msgs
         for frame in self.ogm_advs:     # n^2 time complexity
             for msgs in frame.ogm_adv_msgs:
                 if msgs.ogm_sqn_no < 0:     # check if the msg has not yet been given a sqn number (-1 is default)
@@ -542,6 +579,7 @@ class ogm_aggreg_node:
 
                 else:
                     continue    # if msgs already given a sqn number, ignore
+            assert self.aggregated_msgs_sqn_no < 65536      # make sure sqn no for msgs doesnt exceed ogm sqn range size
 
             if frame.agg_sqn_no < 0:   # check if the frame has not yet been given a sqn number (-1 is default)
                 frame.agg_sqn_no = self.sqn
