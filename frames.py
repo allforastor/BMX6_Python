@@ -142,14 +142,14 @@ class DESC_REQ:
 @dataclass
 class DESC_ADV_msg:
     trans_iid4x: int
-    name: str
-    pkid: int
+    name: str   # socket.gethostname()
+    pkid: int   # socket.gethostbyname(name)
     code_version: int
     capabilites: int
     desc_sqn_no: int
-    ogm_min_sqn_no: int
-    ogm_range: int
-    trans_interval: int
+    ogm_min_sqn_no: int     # default 0
+    ogm_range: int          # default 0 to 2^16
+    trans_interval: int     # time interval for every packet sent
     ext_len: int
     ext_frm: int
 
