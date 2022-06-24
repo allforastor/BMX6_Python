@@ -46,12 +46,21 @@ class local_node:
     orig_routes: int = -1                                                           # store originator
     
     def pkt_received(self, packet_header):
+        if self.packet_sqn != packet_header.pkt_sqn:
+            pass        # send LINK_REQ
         self.packet_sqn = packet_header.pkt_sqn
         self.packet_time = (time.perf_counter() - start_time) * 1000            # bmx.start_time
         self.packet_link_sqn_ref = packet_header.link_adv_sqn
 
         for ln in self.link_tree:
             ln.pkt_update()
+
+
+    def hello_adv_received(self, frame):
+        # LINK_NODES
+        # update rx values (lndev probe record)
+        # call lndev assign best lndev (only best rx will be altered)
+        pass
 
     def link_adv_received(self, frame):
         # LOCAL_NODE
@@ -71,6 +80,9 @@ class local_node:
         self.link_adv_dev_sqn_ref = frame.dev_sqn_no_ref
 
         # LINK_NODE, LINK_NODE_KEY
+        # update tx values
+        # call lndev assign best lndev (only best tx will be altered)
+        
         
         
     def dev_adv_received(self, frame):
@@ -275,10 +287,10 @@ class lndev_probe_record:
 
     def get_link_qual(self):
         self.hello_sum = 0
-        for x in range(self.hello_array):
-            self.hello_sum = self.hello_sum + self.hello_array[x]
-        # for x in range(self.link_window):
-        #     self.hello_sum = self.hello_sum + self.hello_array[(len(self.hello_array) - 1) - x]
+        # for x in range(self.hello_array):
+        #     self.hello_sum = self.hello_sum + self.hello_array[x]
+        for x in range(self.link_window):
+            self.hello_sum = self.hello_sum + self.hello_array[(len(self.hello_array) - 1) - x]
         self.hello_umetric = (self.hello_sum/self.link_window) * 128849018880   # UMETRIC_MAX
 
 # # lndev_probe_record testing functions
