@@ -463,7 +463,7 @@ def dissect_HELLO_ADV(recvd_HELLO_ADV):
 
 	hello_sqn_no = struct.unpack("!H", hello_sqn_no)
 
-	hello_adv = frames.HELLO_ADV(frame_header, hello_sqn_no)
+	hello_adv = frames.HELLO_ADV(frame_header, hello_sqn_no[0])
 
 	return hello_adv
 
@@ -548,7 +548,7 @@ def dissect_LINK_REQ(recvd_LINK_REQ):
 
 	destination_local_id = struct.unpack("!I", destination_local_id)
 
-	link_req = frames.LINK_REQ(frame_header, destination_local_id)
+	link_req = frames.LINK_REQ(frame_header, destination_local_id[0])
 
 	return link_req
 
@@ -617,7 +617,7 @@ def dissect_LINK_ADV(recvd_LINK_ADV):
 		x = dissect_LINK_ADV_msg(link_adv_msg_list_raw[i:(i + 6)]) #dissects the 6 bytes
 		link_adv_msg_list.append(x)
 
-	link_adv = frames.LINK_ADV(frame_header, device_sequence_no_reference, link_adv_msg_list)
+	link_adv = frames.LINK_ADV(frame_header, device_sequence_no_reference[0], link_adv_msg_list)
 
 	return link_adv
 
@@ -636,7 +636,7 @@ def dissect_DEV_REQ(recvd_DEV_REQ):
 
 	destination_local_id = struct.unpack("!I", destination_local_id)
 
-	dev_req = frames.DEV_REQ(frame_header, destination_local_id)
+	dev_req = frames.DEV_REQ(frame_header, destination_local_id[0])
 
 	return dev_req
 
@@ -708,7 +708,7 @@ def dissect_DEV_ADV(recvd_DEV_ADV):
 		x = dissect_DEV_ADV_msg(dev_adv_msg_list_raw[i:(i + 26)]) #dissects the 26 bytes
 		dev_adv_msg_list.append(x)
 
-	dev_adv = frames.DEV_ADV(frame_header, device_sequence_no, dev_adv_msg_list)
+	dev_adv = frames.DEV_ADV(frame_header, device_sequence_no[0], dev_adv_msg_list)
 
 	return dev_adv
 
@@ -1015,7 +1015,7 @@ def dissect_OGM_ADV(recvd_OGM_ADV):
 	return ogm_adv
 
 
-	
+
 
 #adding request frames to frames 2 send list alongside with the unsolicited adv frames
 def send_REQ_frame(REQ_frame, frames2send):
