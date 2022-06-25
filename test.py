@@ -165,3 +165,23 @@ UMETRIC_MAX = (((1) << (OGM_EXPONENT_OFFSET + OGM_EXPONENT_MAX)) + ((FM8_MANTISS
 print("UMETRIC_MAX: ",UMETRIC_MAX)
 i = UMETRIC_MAX/111
 print(int(i))
+
+@dataclass
+class x:
+    l : list = field(default_factory=lambda:[])
+
+    def app(self, lis):
+        self.l[0].append(lis)
+
+local_x = x([])
+local_y = x([])
+numlist = [1,2,3]
+local_x.l.append(numlist)
+local_x.l.append(numlist)
+print("x:",local_x.l,'\t',"y:",local_y.l)
+local_x.l[0].append(4)
+print("x:",local_x.l,'\t',"y:",local_y.l)
+local_x.app(5)
+print("x:",local_x.l,'\t',"y:",local_y.l)
+
+

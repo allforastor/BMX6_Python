@@ -53,15 +53,15 @@ class local_node:
         self.packet_time = (time.perf_counter() - start_time) * 1000            # bmx.start_time
         self.packet_link_sqn_ref = packet_header.link_adv_sqn
 
+        # packet updates
         for ln in self.link_tree:
             ln.pkt_update()
 
 
-    def hello_adv_received(self, frame):
-        # LINK_NODES
-        # update rx values (lndev probe record)
-        # call lndev assign best lndev (only best rx will be altered)
-        pass
+    def link_req_received(self, frame):
+        if(frame.dest_local_id == self.local_id):
+            return 1
+        return 0
 
     def link_adv_received(self, frame):
         # LOCAL_NODE
@@ -81,10 +81,11 @@ class local_node:
         self.link_adv_dev_sqn_ref = frame.dev_sqn_no_ref
 
         # LINK_NODE, LINK_NODE_KEY
-        # update tx values
-        # call lndev assign best lndev (only best tx will be altered)
         
-        
+    def dev_req_received(self, frame):
+        if(frame.dest_local_id == self.local_id):
+            return 1
+        return 0 
         
     def dev_adv_received(self, frame):
         self.dev_adv_sqn = frame.dev_sqn_no
@@ -96,14 +97,19 @@ class local_node:
         
     def rp_adv_received(self, frame):
         self.rp_adv_time = (time.perf_counter() - start_time) * 1000        # bmx.start_time
-        req = 0
-        for x in frame.rp_msgs:
-            req = req + x.ogm_req
-        if(req > 0):    # check if neighbor as well
-            self.rp_ogm_request_received = 1
-        else:
-            self.rp_ogm_request_received = 0
-        self.orig_routes = 0
+        self.rp_ogm_request_received = 0    # HAROLD
+        self.orig_routes = 0                # HAROLD
+
+        # LINK_NODE, LINK_NODE_KEY
+        # update tx values
+        # call lndev assign best lndev (only best tx will be altered)
+
+    def hello_adv_received(self, frame):
+        # LINK_NODES
+        # update rx values (lndev probe record)
+        # call lndev assign best lndev (only best rx will be altered)
+        pass
+
 
     #def set_iid_offset_for_ogm_msg(self, OGM_ADV, neighbor):   # initialize iid offset for msgs # migrate to somewhere # works for 1 frame only # modified
     #    for msg in OGM_ADV.ogm_adv_msgs:
@@ -117,10 +123,6 @@ class local_node:
     #
     #    self.orig_routes = iid  # store iid value to local node
 
-
-
-# avl_tree link_tree
-
 @dataclass
 class link_node_key:
     local_id: int = -1                                                          # local ID of the other node (LOCAL_ID_T)
@@ -128,7 +130,7 @@ class link_node_key:
 
 @dataclass
 class link_node:
-    local: local_node                                                           # local node connected to this link
+    local: local_node = None                                                    # local node connected to this link
 
     key: link_node_key = link_node_key(-1,-1)                                   # holds information about the other node
     link_ip: ipaddress.ip_address = ipaddress.ip_address('0.0.0.0')                 # ip address of the link (IPX_T)
@@ -137,7 +139,7 @@ class link_node:
 
     hello_sqn_max: int = -1                                                     # last sequence number (HELLO_SQN_T)
     
-    linkdev_list: list = field(default_factory=lambda:[])                           # list of link_devs (list_head)
+    lndev_list: list = field(default_factory=lambda:[])                             # list of link_devs (list_head)
 
     def pkt_update(self):
         self.pkt_time_max = self.local.packet_time
@@ -147,96 +149,8 @@ class link_node:
             self.hello_time_max = (time.perf_counter() - start_time) * 1000     # bmx.start_time
             self.hello_sqn_max = frame.HELLO_sqn_no
 
-# @dataclass
-# class if_link_node:
-#     update_sqn: int = 0
-#     changed: int = 0
-#     index: int = 0
-#     type: int = 0
-#     alen: int = 0
-#     flags: int = 0
-
-#     addr: int = 0                                                               # ADDR_T
-#     name: str = ""
-
-#     if_addr_tree: list = field(default_factory=lambda:[])                       # avl_tree
-
-# @dataclass
-# class if_addr_node:
-#     iln: if_link_node
-#     dev: list = field(default_factory=lambda:[])                                # dev_node
-#     rta_tb: list = field(default_factory=lambda:[])                             # array[]
-
-
-
-# @dataclass
-# class dev_ip_key:
-#     ip: ipaddress.ip_address = ipaddress.ip_address('0.0.0.0')                  # copy of dev.if_llocal_addr.ip_addr
-#     idx: int = -1                                                               # link_key.dev_idx (DEVADV_IDX_T)
-
-
-# @dataclass
-# class dev_node:
-#     if_link: int                                                                # if_link_node
-#     if_llocal_addr: int                                                         # if_addr_node
-#     if_global_addr: int                                                         # if_addr_node
-
-#     hard_conf_changed: int
-#     soft_conf_changed: int
-#     autoIP6configured: int                                                      # net_key
-#     autoIP6ifindex: int
-#     active: int
-#     activate_again: int
-#     activate_cancelled: int
-#     tmp_flag_for_to_be_send_adv: int
-
-#     dev_adv_msg: int
-
-#     ifname_label: str                                                           # IFNAME_T
-#     ifname_device: str                                                          # IFNAME_T
-
-#     # dummy_lndev: link_dev_node
-    
-#     llip_key: dev_ip_key
-#     mac: int                                                                    # MAC_T
-
-#     ip_llocal_str: str                                                          # array[IPX_STR_LEN]
-#     ip_global_str: str                                                          # array[IPX_STR_LEN]
-#     ip_brc_str: str                                                             # array[IPX_STR_LEN]
-
-#     llocal_unicast_addr: int                                                    # sockaddr_storage
-#     tx_netwbrc_addr: int                                                        # sockaddr_storage
-
-#     unicast_sock: int
-#     rx_mcast_sock: int
-#     rx_fullbrc_sock: int
-
-#     link_hello_sqn: int                                                         # HELLO_SQN_T
-
-#     tx_task_lists: list                                                         # array of scheduled frames (list_head - array[FRAME_TYPE_ARRSZ])
-#     tx_task_interval_tree: int                                                  # avl_tree
-
-#     announce: int
-
-#     linklayer_conf: int
-#     linklayer: int
-
-#     channel_conf: int
-#     channel: int
-
-#     umetric_min_conf: int                                                       # UMETRIC_T
-#     umetric_min: int                                                            # UMETRIC_T
-
-#     umetric_max_conf: int                                                       # UMETRIC_T
-#     umetric_max: int                                                            # UMETRIC_T
-
-#     global_prefix_conf_: int                                                    # net_key
-#     llocal_prefix_conf_: int                                                    # net_key
-    
-#     plugin_data: list                                                           # void*
-
 @dataclass
-class net_info:
+class dev_node:         # our own implementation
     name: str = None
     idx: int = 0
     ipv4: ipaddress.ip_address = None
@@ -246,15 +160,10 @@ class net_info:
     umetric_min: int = None
     umetric_max: int = None
 
-
 @dataclass
 class link_dev_key:
-    link: int = 0 #link_node = link_node()                                               # link that uses the interface
-    # dev: dev_node = dev_node()                                                # outgoing interface for transmiting (dev_node)
-
-    
-
-# avl_tree link_dev_tree
+    link: link_node = None                                              # link that uses the interface
+    dev: dev_node = None                                                # outgoing interface for transmiting (dev_node)
 
 @dataclass
 class lndev_probe_record:
@@ -307,7 +216,7 @@ class lndev_probe_record:
 
 @dataclass
 class link_dev_node:
-    list_n: list = field(default_factory=lambda:[])                             # list_node
+    list_n: list = field(default_factory=lambda:[])                             # IRRELEVANT, just links it to the link_node's lndev_list
     key: link_dev_key = link_dev_key()                                          # holds information about the link and device
 
     tx_probe_umetric: int = 0                                                   # RP_ADV.rp_127range (UMETRIC_T)
