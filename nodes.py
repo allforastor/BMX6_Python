@@ -1,5 +1,5 @@
 import time
-import psutil
+# import psutil
 import socket
 import ipaddress
 from sys import getsizeof
@@ -10,6 +10,7 @@ from importlib.machinery import OPTIMIZED_BYTECODE_SUFFIXES
 import frames
 
 start_time = time.perf_counter()
+
 
 # avl_tree local_tree
 
@@ -364,31 +365,84 @@ class router_node:
             if diff > 1:      # make sure no ogm frame is missed
                 print("Warning! Missed an OGM_ADV frame!")
             self.ogm_sqn_last = frame.agg_sqn_no
-            
+
+@dataclass
+class description_hash:
+    u8: int                             # array[HASH_SHA1_LEN] - [20]
+    u32: int 
+
+# avl_tree dhash_tree
+# avl_tree dhash_invalid_tree
+
+@dataclass
+class dhash_node:
+    dhash: description_hash             
+
+    referred_by_me_timestamp: time      # TIME_T
+
+    neigh: list                         # neigh_node
+
+    myIID4origL: int                    # IID_T
+    
+    orig_n: list                        # orig_node
+
 # avl_tree neigh_trees
 
+# node's own iid_ref consistent in my_iid_repos and neigh_repos
 @dataclass
 class iid_ref:
     myIID4x: int                         # IID_T
     referred_by_neigh_timestamp_sec: int        
 
 @dataclass
+class iid_entry:
+    u8: int         # repos identifier
+    ref: iid_ref    # universal iid_ref
+    dhash_n: dhash_node
+
+@dataclass
 class iid_repos:
-    # arr_size: int
-    # min_free: int
-    # max_free: int
-    # tot_used: int
-    arr: dict                           # maps IID to its hash 
-    ref: iid_ref
+    arr_size: int = 0  # number of allocated array fields; = max()?
+    min_free: int = 0  # first unused key from beginning of dictionary
+    max_free: int = 0  # first unused key after the last used field in the dictionary; =max()+1
+    tot_used: int = 0  # total number of used keys; len()
+    
+    arr: list = field(default_factory = lambda:[])      # maps iid to corresponding dhash_node 
 
     def print_repos(self):              # prints repository table contents
         print(self.arr)
         print("-----")
 
+    def iid_set(self, IIDpos, myIID4x, dhnode):
+        # setting iid_repos attributes
+        self.tot_used += 1
+        self.max_free = max(self.max_free, myIID4x + 1)
+
+        min = self.min_free     # list index of first unused key from beginning of list
+        if (min == IIDpos):     # and min <= self.max_free ?
+            min += 1
+            # increment until next free position
+            for entry in self.arr[min:]:
+                try:
+                    if (entry.u8 == min):
+                        min += 1
+                except KeyError: break
+
+        self.min_free = min
+
+        if (myIID4x):
+            self.arr[IIDpos].ref.myIID4x = myIID4x
+            self.arr[IIDpos].ref.referred_by_neigh_timestamp_sec = time.perf_counter()
+        else:
+            self.arr[IIDpos].node = dhnode
+            dhnode.referred_by_me_timestamp = time.perf_counter()
+
+
 @dataclass
 class neigh_node:
     neigh_node_key: list                # neigh_node
     dhash_n: list                       # dhash_node                 
+    # list of dhash_node already contained within iid_repos; will contain reference to my_iid_repos instead
 
     local: list                         # local_node
 
@@ -429,12 +483,7 @@ class neigh_node:
                 print("Retrieved hash from local IID repository: " + my_iid.arr[myIID4x])
 
 
-# avl_tree orig_tree
-
-@dataclass
-class description_hash:
-    u8: int                             # array[HASH_SHA1_LEN] - [20]
-    u32: int                            # array[HASH_SHA1_LEN/4] - [20/4]
+# avl_tree orig_tree                           # array[HASH_SHA1_LEN/4] - [20/4]
 
 @dataclass
 class desc_tlv_hash_node:
@@ -534,22 +583,6 @@ class orig_node:
             self.ogm_sqn_send = frame.agg_sqn_no
 
         return ack_msg1, ack_msg2
-
-
-# avl_tree dhash_tree
-# avl_tree dhash_invalid_tree
-
-@dataclass
-class dhash_node:
-    dhash: description_hash             
-
-    referred_by_me_timestamp: time      # TIME_T
-
-    neigh: list                         # neigh_node
-
-    myIID4origL: int                    # IID_T
-    
-    orig_n: list                        # orig_node
 
 
 # avl_tree blacklisted_tree
