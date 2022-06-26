@@ -3,6 +3,15 @@ from dataclasses import dataclass, field
 import socket
 import re, uuid
 import ipaddress
+from math import log2
+
+def custom_log2(num):
+    if num < 0:
+        raise ValueError("negative values are not accepted..")
+    if num == 0:
+        return 0
+    else:
+        return round(log2(num))
 
 @dataclass
 class header:
@@ -32,6 +41,36 @@ class OGM_ADV_msg:
     metric_exponent: int = 0
     iid_offset: int = None
     ogm_sqn_no: int = -1
+        
+    def fmetric(self):  # uses mantisse & exp values
+        return self.metric_mantisse, self.metric_exponent
+
+    """return (((UMETRIC_T) 1) << (fm.val.f.exp_fm16 + OGM_EXPONENT_OFFSET)) +
+    (((UMETRIC_T) fm.val.f.mantissa_fm16) << (fm.val.f.exp_fm16));"""
+    # [1 << (metric exp + 5)] + [metric mantissa << metric exp]
+    def fmetric_to_umetric(self):
+        return (1 << (self.metric_exponent + 5)) + (self.metric_mantisse + self.metric_exponent)
+
+    def umetric(self):  # fmetric_to_umetric
+        return self.fmetric_to_umetric()
+
+    """3 cases
+    note for c1: UMETRIC_MIN_NOT_ROUTABLE = ((((UMETRIC_T) 1) << OGM_EXPONENT_OFFSET) + OGM_MANTISSA_MIN__NOT_ROUTABLE) = (1 << 5) + 1 = 33
+    note for c2: UMETRIC_MAX = ((((UMETRIC_T) 1) << (OGM_EXPONENT_OFFSET+OGM_EXPONENT_MAX)) + (((UMETRIC_T) FM8_MANTISSA_MASK) << ((OGM_EXPONENT_OFFSET+OGM_EXPONENT_MAX)-FM8_MANTISSA_BIT_SIZE))) = (1 << 5+31) + (((1<<3)-1) << ((1 << 5+31)- 3))
+    case 1: argument < 64 (umetric_min_not_routable)                                                                                                                                         68719476736  + (     7     << (68719476736 - 3))
+    case 2: argument >= umetric_max, case disregarded.. assuming argument wont exceed absurd value                                                                                                                                                               = absurdly large value
+    case 3: else: """
+
+    def umetric_to_fmetric(self, x):
+        if x < 33:  # UMETRIC_MIN_NOT_ROUTABLE
+            self.metric_exponent = 0
+            self.metric_mantisse = 0
+        else:
+            tmp = x + x/79  # 79 from UMETRIC_TO_FMETRIC_INPUT_FIX
+            exp_sum = custom_log2(x)
+            self.metric_exponent = exp_sum - 5  # ogm_exponent_offset
+            self.metric_mantisse = (tmp >> (exp_sum - 5)) - (1 << 5)  # ( (tmp>>(exp_sum-OGM_MANTISSA_BIT_SIZE)) - (1<<OGM_MANTISSA_BIT_SIZE) );
+
 
 @dataclass
 class OGM_ADV:
@@ -143,7 +182,7 @@ class DESC_REQ:
 class DESC_ADV_msg:
     trans_iid4x: int
     name: str   # socket.gethostname()
-    pkid: int   # socket.gethostbyname(name)
+    pkid: int   
     code_version: int
     capabilites: int
     desc_sqn_no: int
