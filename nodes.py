@@ -53,10 +53,12 @@ class local_node:
         self.packet_time = (time.perf_counter() - start_time) * 1000            # bmx.start_time
         self.packet_link_sqn_ref = packet_header.link_adv_sqn
 
-        # packet updates
         for ln in self.link_tree:
-            ln.pkt_update()
-
+            if((ln.key.local_id == packet_header.local_id) and (ln.key.local_id == packet_header.local_id)):
+                ln.pkt_time_max = self.packet_time
+                for lndev in ln.lndev_list:
+                    if(lndev.key.dev.active == 1):
+                        lndev.pkt_time_max = self.packet_time
 
     def link_req_received(self, frame):
         if(frame.dest_local_id == self.local_id):
@@ -156,14 +158,16 @@ class dev_node:         # our own implementation
     ipv4: ipaddress.ip_address = None
     ipv6: ipaddress.ip_address = None
     mac: str = None
+    type: int = None
+    active: int = None
     channel: int = 0
     umetric_min: int = None
     umetric_max: int = None
 
 @dataclass
 class link_dev_key:
-    link: link_node = None                                              # link that uses the interface
-    dev: dev_node = None                                                # outgoing interface for transmiting (dev_node)
+    link: link_node = None                                             # link that uses the interface
+    dev: dev_node = None                                               # outgoing interface for transmiting
 
 @dataclass
 class lndev_probe_record:
@@ -216,7 +220,7 @@ class lndev_probe_record:
 
 @dataclass
 class link_dev_node:
-    list_n: list = field(default_factory=lambda:[])                             # IRRELEVANT, just links it to the link_node's lndev_list
+    # list_n: list = field(default_factory=lambda:[])                             # IRRELEVANT, just links it to the link_node's lndev_list
     key: link_dev_key = link_dev_key()                                          # holds information about the link and device
 
     tx_probe_umetric: int = 0                                                   # RP_ADV.rp_127range (UMETRIC_T)
