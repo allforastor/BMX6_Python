@@ -8,6 +8,7 @@ from dataclasses import dataclass, field
 from importlib.machinery import OPTIMIZED_BYTECODE_SUFFIXES
 # import bmx
 import frames
+from random import randint
 
 start_time = time.perf_counter()
 
@@ -409,24 +410,24 @@ class host_metricalgo:
 
     umetric_min: int  # UMETRIC_T
     algo_type: int  # ALGO_T
-    flags: int  # uint16_t
-    algo_rp_exp_numerator: int  # uint8_t
-    algo_rp_exp_divisor: int  # uint8_t
-    algo_tp_exp_numerator: int  # uint8_t
-    algo_tp_exp_divisor: int  # uint8_t
+    flags: int  # uint16_t              # seen in hna.h
+    algo_rp_exp_numerator: int = 1      # default 1 (0-3) (uint8_t)
+    algo_rp_exp_divisor: int = 2        # default 2 (0-3) (uint8_t)
+    algo_tp_exp_numerator: int = 1      # default 1 (0-3) (uint8_t)
+    algo_tp_exp_divisor: int = 1        # default 1 (1-2) (uint8_t)
 
-    window_size: int  # uint8_t
-    lounge_size: int  # uint8_t
-    regression: int  # uint8_t
+    window_size: int = 5                # default 5 (1-250) (uint8_t)
+    lounge_size: int = 1                # deafult 1 (0-10) (uint8_t)
+    regression: int = 1                 # default 1 (1-255) (uint8_t)
     # fast_regression: int   # uint8_t
     # fast_regression_impact: int    # uint8_t
-    hystere: int  # uint8_t
-    hop_penalty: int  # uint8_t
-    late_penalty: int  # uint8_t
+    #hystere: int  # uint8_t         # used for HNA annoucements # excluded for now
+    hop_penalty: int = 0             # (uint8_t) default 0 (0-255) #Penalize non-first received OGM ADVs in 1/255 (each hop will substract metric*(VALUE/255) from current path-metric).
+    #late_penalty: int  # uint8_t    # penalize non-first received ogm advs  # excluded for now
 
 @dataclass
 class orig_node:    
-    global_id: int              # GLOBAL_ID_T (32 len) + PKID_T # default -1
+    global_id: str             # GLOBAL_ID_T (32 len) + PKID_T # default None
 
     dhash_n: list               # dhash_node   # default dhash_node
     desc: int  # **description (MISSING???) # default = None # DESC_ADV
@@ -460,6 +461,16 @@ class orig_node:
     best_rt_local: router_node
     curr_rt_local: router_node
     curr_rt_linkdev: link_dev_node
+    
+    def global_id_gen(self):    
+        name = socket.gethostname()
+        randomm = randint(75557863725914323419136, 1208925819614629174706175)  # 1 w/ 19 0's in decimal, 20 F's
+        x = hex(randomm)  # str output
+        formatt = x[2:]
+        glid = name + "." + formatt
+        self.global_id = glid
+
+        return glid
         
     def update_self(self, frame):     # create global id (160bits)
         #changed = 0        # use for tracking change in self.desc
