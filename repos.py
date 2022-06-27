@@ -1,12 +1,19 @@
+from asyncio.windows_events import NULL
 import string
 import sys
 import hashlib
+import time
+import random
+
+import runtime
 from frames import DESC_ADV_msg
 from nodes import iid_repos, neigh_node
 from dataclasses import dataclass, fields
 
-my_iid_repos = iid_repos()      # local IID repository that should hold all dhash_nodes
 
+my_iid_repos = runtime.my_iid_repos      # local IID repository that should hold all dhash_nodes
+
+# reference funtion from orig bmx6: void update_my_description_adv(void)
 # def hash_description(msg): #hashes description from message
 #     dhash = hashlib.sha1()
 
@@ -27,11 +34,24 @@ my_iid_repos = iid_repos()      # local IID repository that should hold all dhas
 #     my_iid_repos.arr[iid] = result
 
 def iid_new_myIID4x(dhnode):
-    pass
 
-def iid_set_neighIID4x(neigh_rep, neighIID4x, myIID4x):
-    pass
+    if (my_iid_repos.arr_size > my_iid_repos.tot_used):
+        rand_iid = random.randint(0,my_iid_repos.arr_size)  #could also be max_free because arr_size + 1
+        mid = max(1,rand_iid)   # minimum iid value: IID_MIN_USED = 1
 
+        for entry in my_iid_repos.arr[mid:]:
+            try:
+                if (entry.u8 == mid and entry.dhash_n):     # possibly remove 2nd condition since existing key implies existing node?
+                    mid += 1
+                    if (mid >= my_iid_repos.arr_size):
+                        mid = 1     # return to minimum iid 1
+            except KeyError: break
+    else:
+        mid = my_iid_repos.min_free
+
+    my_iid_repos.iid_set(mid,0,dhnode)
+
+    return mid  # function should be called as dhash_node->myIID4orig = iid_new_myIID4x(dhnode);
 
 # Declaring test repository values
 # Node A (this node)
