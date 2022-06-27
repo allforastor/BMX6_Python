@@ -14,12 +14,35 @@ import binascii
 start_time = time.perf_counter()
 # print(start_time)
 
+frame_type_HELLO_ADV = 4
+
+frame_type_DEV_REQ = 6
+frame_type_DEV_ADV = 7
+frame_type_LINK_REQ = 8
+frame_type_LINK_ADV = 9
+
+frame_type_RP_ADV = 11
+
+
+frame_type_DESC_REQ = 14
+frame_type_DESC_ADV = 15
+
+
+frame_type_HASH_REQ = 18
+frame_type_HASH_ADV = 19
+
+
+frame_type_OGM_ADV = 22
+frame_type_OGM_ACK = 23
+
+
+
 @dataclass
 class packet_header:
     bmx_version: int
     reserved: int
     pkt_len: int
-    transmittedIID: int
+    transmitterIID: int
     link_adv_sqn: int
     pkt_sqn: int
     local_id: int
@@ -144,73 +167,73 @@ def dissect_packet(recvd_packet):
 			frameheader_unkown = dissect_long_frame_header(frameheader_unkown)			
 		
 		#checks the frame type of the dissected frame and appends it to the frames list
-		if frameheader_unkown.frm_type == 1: #if frame type is 1, then it is a hello_adv
+		if frameheader_unkown.frm_type == frame_type_HELLO_ADV: 
 			hello_adv_frame = recvd_packet[curr_pos:curr_pos + frameheader_unkown.frm_len]
 			hello_adv_frame = dissect_HELLO_ADV(hello_adv_frame)
 			frameslist.append(hello_adv_frame)
 			curr_pos += hello_adv_frame.frm_header.frm_len #x now becomes the start of the next byte length/seq
 
-		elif frameheader_unkown.frm_type == 2:
+		elif frameheader_unkown.frm_type == frame_type_RP_ADV:
 			rp_adv_frame = recvd_packet[curr_pos: curr_pos + frameheader_unkown.frm_len]
 			rp_adv_frame = dissect_RP_ADV(rp_adv_frame)
 			frameslist.append(rp_adv_frame)
 			curr_pos += rp_adv_frame.frm_header.frm_len
 
-		elif frameheader_unkown.frm_type == 3: #if frame type is 3, then it is LINK_REQ frame
+		elif frameheader_unkown.frm_type == frame_type_LINK_REQ: #if frame type is 3, then it is LINK_REQ frame
 			link_req_frame = recvd_packet[curr_pos: curr_pos + frameheader_unkown.frm_len]
 			link_req_frame = dissect_LINK_REQ(link_req_frame)
 			frameslist.append(link_req_frame)
 			curr_pos += link_req_frame.frm_header.frm_len
 
-		elif frameheader_unkown.frm_type == 4: #if frame type is 4, then it is a LINK_ADV frame
+		elif frameheader_unkown.frm_type == frame_type_LINK_ADV: #if frame type is 4, then it is a LINK_ADV frame
 			link_adv_frame = recvd_packet[curr_pos: curr_pos + frameheader_unkown.frm_len]
 			link_adv_frame = dissect_LINK_ADV(link_adv_frame)
 			frameslist.append(link_adv_frame)
 			curr_pos += link_adv_frame.frm_header.frm_len
 
-		elif frameheader_unkown.frm_type == 5:
+		elif frameheader_unkown.frm_type == frame_type_DEV_REQ:
 			dev_req_frame = recvd_packet[curr_pos:curr_pos + frameheader_unkown.frm_len]
 			dev_req_frame = dissect_DEV_REQ(dev_req_frame)
 			frameslist.append(dev_req_frame)
 			curr_pos += dev_req_frame.frm_header.frm_len
 
-		elif frameheader_unkown.frm_type == 6:
+		elif frameheader_unkown.frm_type == frame_type_DEV_ADV:
 			dev_adv_frame = recvd_packet[curr_pos:curr_pos + frameheader_unkown.frm_len]
 			dev_adv_frame = dissect_DEV_ADV(dev_adv_frame)
 			frameslist.append(dev_adv_frame)
 			curr_pos += dev_adv_frame.frm_header.frm_len
 
-		elif frameheader_unkown.frm_type == 7:
+		elif frameheader_unkown.frm_type == frame_type_DESC_REQ:
 			desc_req_frame = recvd_packet[curr_pos:curr_pos + frameheader_unkown.frm_len]
 			desc_req_frame = dissect_DESC_REQ(desc_req_frame)
 			frameslist.append(desc_req_frame)
 			curr_pos += desc_req_frame.frm_header.frm_len
 		#not yet done
-		elif frameheader_unkown.frm_type == 8:
+		elif frameheader_unkown.frm_type == frame_type_DESC_ADV:
 			desc_adv_frame = recvd_packet[curr_pos:curr_pos + frameheader_unkown.frm_len]
 			desc_adv_frame = dissect_DESC_ADV(desc_adv_frame)
 			frameslist.append(desc_adv_frame)
 			curr_pos += desc_adv_frame.frm_header.frm_len
 
-		elif frameheader_unkown.frm_type == 9:
+		elif frameheader_unkown.frm_type == frame_type_HASH_REQ:
 			hash_req_frame = recvd_packet[curr_pos:curr_pos + frameheader_unkown.frm_len]
 			hash_req_frame = dissect_HASH_REQ(hash_req_frame)
 			frameslist.append(hash_req_frame)
 			curr_pos += hash_req_frame.frm_header.frm_len
 
-		elif frameheader_unkown.frm_type == 10:
+		elif frameheader_unkown.frm_type == frame_type_HASH_ADV:
 			hash_adv_frame = recvd_packet[curr_pos:curr_pos + frameheader_unkown.frm_len]
 			hash_adv_frame = dissect_HASH_ADV(hash_adv_frame)
 			frameslist.append(hash_adv_frame)
 			curr_pos += hash_adv_frame.frm_header.frm_len
 
-		elif frameheader_unkown.frm_type == 11:
+		elif frameheader_unkown.frm_type == frame_type_OGM_ACK:
 			ogm_ack_frame = recvd_packet[curr_pos:curr_pos + frameheader_unkown.frm_len]
 			ogm_ack_frame = dissect_OGM_ACK(ogm_ack_frame)
 			frameslist.append(ogm_ack_frame)
 			curr_pos += ogm_ack_frame.frm_header.frm_len
 
-		elif frameheader_unkown.frm_type == 12:
+		elif frameheader_unkown.frm_type == frame_type_OGM_ADV:
 			ogm_adv_frame = recvd_packet[curr_pos:curr_pos + frameheader_unkown.frm_len]
 			ogm_adv_frame = dissect_OGM_ADV(ogm_adv_frame)
 			frameslist.append(ogm_adv_frame)
@@ -316,14 +339,14 @@ def set_frame_header(frame):
 
 
 	if type(frame) == frames.HELLO_ADV: # if frame type is HELLO_ADV, set frm_type to 1
-		frame_type = 1
+		frame_type = frame_type_HELLO_ADV
 		short_frame = 1
 		hello_sqn_no = frame.HELLO_sqn_no
 		frame_length = short_frame_header_length + 2 #size of the hello sequence number
 		created_frame = frames.HELLO_ADV(frames.short_header(short_frame, relevant_frame, frame_type, frame_length), hello_sqn_no)
 
 	elif type(frame) == frames.RP_ADV:
-		frame_type = 2
+		frame_type = frame_type_RP_ADV
 		reserved = 0
 		if len(frame.rp_msgs)*1 + short_frame_header_length > 255:
 			short_frame = 0
@@ -335,14 +358,14 @@ def set_frame_header(frame):
 			created_frame = frames.RP_ADV(frames.short_header(short_frame, relevant_frame, frame_type, frame_length), frame.rp_msgs)
 
 	elif type(frame) == frames.LINK_REQ:
-		frame_type = 3
+		frame_type = frame_type_LINK_REQ
 		short_frame = 1
 		destination_local_id = frame.dest_local_id
 		frame_length = short_frame_header_length + 4 #size of the destination local id
 		created_frame = frames.LINK_REQ(frames.short_header(short_frame, relevant_frame, frame_type, frame_length), destination_local_id)
 
 	elif type(frame) == frames.LINK_ADV:
-		frame_type = 4
+		frame_type = frame_type_LINK_ADV
 		reserved = 0
 		device_sequence_no_reference_length = 2
 		if len(frame.link_msgs)*6 + device_sequence_no_reference_length + short_frame_header_length > 255:
@@ -355,14 +378,14 @@ def set_frame_header(frame):
 			created_frame = frames.LINK_ADV(frames.short_header(short_frame, relevant_frame, frame_type, frame_length), frame.dev_sqn_no_ref, frame.link_msgs)
 	
 	elif type(frame) == frames.DEV_REQ:
-		frame_type = 5
+		frame_type = frame_type_DEV_REQ
 		short_frame = 1
 		destination_local_id = frame.dest_local_id
 		frame_length = short_frame_header_length + 4 # size of tHe destination local id
 		created_frame = frames.DEV_REQ(frames.short_header(short_frame, relevant_frame, frame_type, frame_length), destination_local_id)
 
 	elif type(frame) == frames.DEV_ADV:
-		frame_type = 6
+		frame_type = frame_type_DEV_ADV
 		reserved = 0
 		device_sequence_no_length = 2
 		if len(frame.dev_msgs)*26 + device_sequence_no_length + short_frame_header_length > 255:
@@ -376,7 +399,7 @@ def set_frame_header(frame):
 			created_frame = frames.DEV_ADV(frames.short_header(short_frame, relevant_frame, frame_type, frame_length), frame.dev_sqn_no, frame.dev_msgs)
 	
 	elif type(frame) == frames.DESC_REQ:
-		frame_type = 7
+		frame_type = frame_type_DESC_REQ
 		reserved = 0
 		if len(frame.desc_msgs)*6 + short_frame_header_length > 255:
 			short_frame = 0
@@ -388,10 +411,10 @@ def set_frame_header(frame):
 			created_frame = frames.DESC_REQ(frames.short_header(short_frame, relevant_frame, frame_type, frame_length), frame.desc_msgs)
 
 	elif type(frame) == frames.DESC_ADV:
-		frame_type = 8
+		frame_type = frame_type_DESC_ADV
 
 	elif type(frame) == frames.HASH_REQ:
-		frame_type = 9
+		frame_type = frame_type_HASH_REQ
 		reserved = 0
 		if len(frame.hash_msgs)*6 + short_frame_header_length > 255:
 			short_frame = 0
@@ -403,7 +426,7 @@ def set_frame_header(frame):
 			created_frame = frames.HASH_REQ(frames.short_header(short_frame, relevant_frame, frame_type, frame_length), frame.hash_msgs)
 
 	elif type(frame) == frames.HASH_ADV:
-		frame_type = 10
+		frame_type = frame_type_HASH_ADV
 		short_frame = 1
 		transmitterIID4x = frame.trans_iid4x
 		description_hash = frame.desc_hash
@@ -411,7 +434,7 @@ def set_frame_header(frame):
 		created_frame = frames.HASH_ADV(frames.short_header(short_frame, relevant_frame, frame_type, frame_length), transmitterIID4x, description_hash)
 
 	elif type(frame) == frames.OGM_ACK:
-		frame_type = 11
+		frame_type = frame_type_OGM_ACK
 		reserved = 0
 		if len(frame.ogm_ack_msgs)*2 + short_frame_header_length > 255:
 			short_frame = 0
@@ -423,7 +446,7 @@ def set_frame_header(frame):
 			created_frame = frames.OGM_ACK(frames.short_header(short_frame, relevant_frame, frame_type, frame_length), frame.ogm_ack_msgs)
 
 	elif type(frame) == frames.OGM_ADV:
-		frame_type = 12
+		frame_type = frame_type_OGM_ADV
 		reserved = 0
 		aggregation_sequence_number_length = 1
 		ogm_destination_array_size_length = 1
