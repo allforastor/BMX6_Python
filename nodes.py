@@ -1,5 +1,5 @@
 import time
-import psutil
+# import psutil
 import socket
 import ipaddress
 from sys import getsizeof
@@ -8,8 +8,10 @@ from dataclasses import dataclass, field
 from importlib.machinery import OPTIMIZED_BYTECODE_SUFFIXES
 # import bmx
 import frames
+from random import randint
 
 start_time = time.perf_counter()
+
 
 # avl_tree local_tree
 
@@ -46,12 +48,23 @@ class local_node:
     orig_routes: int = -1                                                           # store originator
     
     def pkt_received(self, packet_header):
+        if self.packet_sqn != packet_header.pkt_sqn:
+            pass        # send LINK_REQ
         self.packet_sqn = packet_header.pkt_sqn
         self.packet_time = (time.perf_counter() - start_time) * 1000            # bmx.start_time
         self.packet_link_sqn_ref = packet_header.link_adv_sqn
 
         for ln in self.link_tree:
-            ln.pkt_update()
+            if((ln.key.local_id == packet_header.local_id) and (ln.key.local_id == packet_header.local_id)):
+                ln.pkt_time_max = self.packet_time
+                for lndev in ln.lndev_list:
+                    if(lndev.key.dev.active == 1):
+                        lndev.pkt_time_max = self.packet_time
+
+    def link_req_received(self, frame):
+        if(frame.dest_local_id == self.local_id):
+            return 1
+        return 0
 
     def link_adv_received(self, frame):
         # LOCAL_NODE
@@ -72,6 +85,10 @@ class local_node:
 
         # LINK_NODE, LINK_NODE_KEY
         
+    def dev_req_received(self, frame):
+        if(frame.dest_local_id == self.local_id):
+            return 1
+        return 0 
         
     def dev_adv_received(self, frame):
         self.dev_adv_sqn = frame.dev_sqn_no
@@ -83,14 +100,19 @@ class local_node:
         
     def rp_adv_received(self, frame):
         self.rp_adv_time = (time.perf_counter() - start_time) * 1000        # bmx.start_time
-        req = 0
-        for x in frame.rp_msgs:
-            req = req + x.ogm_req
-        if(req > 0):    # check if neighbor as well
-            self.rp_ogm_request_received = 1
-        else:
-            self.rp_ogm_request_received = 0
-        self.orig_routes = 0
+        self.rp_ogm_request_received = 0    # HAROLD
+        self.orig_routes = 0                # HAROLD
+
+        # LINK_NODE, LINK_NODE_KEY
+        # update tx values
+        # call lndev assign best lndev (only best tx will be altered)
+
+    def hello_adv_received(self, frame):
+        # LINK_NODES
+        # update rx values (lndev probe record)
+        # call lndev assign best lndev (only best rx will be altered)
+        pass
+
 
     #def set_iid_offset_for_ogm_msg(self, OGM_ADV, neighbor):   # initialize iid offset for msgs # migrate to somewhere # works for 1 frame only # modified
     #    for msg in OGM_ADV.ogm_adv_msgs:
@@ -104,10 +126,6 @@ class local_node:
     #
     #    self.orig_routes = iid  # store iid value to local node
 
-
-
-# avl_tree link_tree
-
 @dataclass
 class link_node_key:
     local_id: int = -1                                                          # local ID of the other node (LOCAL_ID_T)
@@ -115,7 +133,7 @@ class link_node_key:
 
 @dataclass
 class link_node:
-    local: local_node                                                           # local node connected to this link
+    local: local_node = None                                                    # local node connected to this link
 
     key: link_node_key = link_node_key(-1,-1)                                   # holds information about the other node
     link_ip: ipaddress.ip_address = ipaddress.ip_address('0.0.0.0')                 # ip address of the link (IPX_T)
@@ -124,7 +142,7 @@ class link_node:
 
     hello_sqn_max: int = -1                                                     # last sequence number (HELLO_SQN_T)
     
-    linkdev_list: list = field(default_factory=lambda:[])                           # list of link_devs (list_head)
+    lndev_list: list = field(default_factory=lambda:[])                             # list of link_devs (list_head)
 
     def pkt_update(self):
         self.pkt_time_max = self.local.packet_time
@@ -134,114 +152,23 @@ class link_node:
             self.hello_time_max = (time.perf_counter() - start_time) * 1000     # bmx.start_time
             self.hello_sqn_max = frame.HELLO_sqn_no
 
-# @dataclass
-# class if_link_node:
-#     update_sqn: int = 0
-#     changed: int = 0
-#     index: int = 0
-#     type: int = 0
-#     alen: int = 0
-#     flags: int = 0
-
-#     addr: int = 0                                                               # ADDR_T
-#     name: str = ""
-
-#     if_addr_tree: list = field(default_factory=lambda:[])                       # avl_tree
-
-# @dataclass
-# class if_addr_node:
-#     iln: if_link_node
-#     dev: list = field(default_factory=lambda:[])                                # dev_node
-#     rta_tb: list = field(default_factory=lambda:[])                             # array[]
-
-
-
-# @dataclass
-# class dev_ip_key:
-#     ip: ipaddress.ip_address = ipaddress.ip_address('0.0.0.0')                  # copy of dev.if_llocal_addr.ip_addr
-#     idx: int = -1                                                               # link_key.dev_idx (DEVADV_IDX_T)
-
-
-# @dataclass
-# class dev_node:
-#     if_link: int                                                                # if_link_node
-#     if_llocal_addr: int                                                         # if_addr_node
-#     if_global_addr: int                                                         # if_addr_node
-
-#     hard_conf_changed: int
-#     soft_conf_changed: int
-#     autoIP6configured: int                                                      # net_key
-#     autoIP6ifindex: int
-#     active: int
-#     activate_again: int
-#     activate_cancelled: int
-#     tmp_flag_for_to_be_send_adv: int
-
-#     dev_adv_msg: int
-
-#     ifname_label: str                                                           # IFNAME_T
-#     ifname_device: str                                                          # IFNAME_T
-
-#     # dummy_lndev: link_dev_node
-    
-#     llip_key: dev_ip_key
-#     mac: int                                                                    # MAC_T
-
-#     ip_llocal_str: str                                                          # array[IPX_STR_LEN]
-#     ip_global_str: str                                                          # array[IPX_STR_LEN]
-#     ip_brc_str: str                                                             # array[IPX_STR_LEN]
-
-#     llocal_unicast_addr: int                                                    # sockaddr_storage
-#     tx_netwbrc_addr: int                                                        # sockaddr_storage
-
-#     unicast_sock: int
-#     rx_mcast_sock: int
-#     rx_fullbrc_sock: int
-
-#     link_hello_sqn: int                                                         # HELLO_SQN_T
-
-#     tx_task_lists: list                                                         # array of scheduled frames (list_head - array[FRAME_TYPE_ARRSZ])
-#     tx_task_interval_tree: int                                                  # avl_tree
-
-#     announce: int
-
-#     linklayer_conf: int
-#     linklayer: int
-
-#     channel_conf: int
-#     channel: int
-
-#     umetric_min_conf: int                                                       # UMETRIC_T
-#     umetric_min: int                                                            # UMETRIC_T
-
-#     umetric_max_conf: int                                                       # UMETRIC_T
-#     umetric_max: int                                                            # UMETRIC_T
-
-#     global_prefix_conf_: int                                                    # net_key
-#     llocal_prefix_conf_: int                                                    # net_key
-    
-#     plugin_data: list                                                           # void*
-
 @dataclass
-class net_info:
+class dev_node:         # our own implementation
     name: str = None
     idx: int = 0
     ipv4: ipaddress.ip_address = None
     ipv6: ipaddress.ip_address = None
     mac: str = None
+    type: int = None
+    active: int = None
     channel: int = 0
     umetric_min: int = None
     umetric_max: int = None
 
-
 @dataclass
 class link_dev_key:
-    link: int = 0 #link_node = link_node()                                               # link that uses the interface
-    # dev: dev_node = dev_node()                                                # outgoing interface for transmiting (dev_node)
-
-    
-
-# avl_tree link_dev_tree
+    link: link_node = None                                             # link that uses the interface
+    dev: dev_node = None                                               # outgoing interface for transmiting
 
 @dataclass
 class lndev_probe_record:
@@ -275,10 +202,10 @@ class lndev_probe_record:
 
     def get_link_qual(self):
         self.hello_sum = 0
-        for x in range(self.hello_array):
-            self.hello_sum = self.hello_sum + self.hello_array[x]
-        # for x in range(self.link_window):
-        #     self.hello_sum = self.hello_sum + self.hello_array[(len(self.hello_array) - 1) - x]
+        # for x in range(self.hello_array):
+        #     self.hello_sum = self.hello_sum + self.hello_array[x]
+        for x in range(self.link_window):
+            self.hello_sum = self.hello_sum + self.hello_array[(len(self.hello_array) - 1) - x]
         self.hello_umetric = (self.hello_sum/self.link_window) * 128849018880   # UMETRIC_MAX
 
 # # lndev_probe_record testing functions
@@ -294,7 +221,7 @@ class lndev_probe_record:
 
 @dataclass
 class link_dev_node:
-    list_n: list = field(default_factory=lambda:[])                             # list_node
+    # list_n: list = field(default_factory=lambda:[])                             # IRRELEVANT, just links it to the link_node's lndev_list
     key: link_dev_key = link_dev_key()                                          # holds information about the link and device
 
     tx_probe_umetric: int = 0                                                   # RP_ADV.rp_127range (UMETRIC_T)
@@ -352,31 +279,84 @@ class router_node:
             if diff > 1:      # make sure no ogm frame is missed
                 print("Warning! Missed an OGM_ADV frame!")
             self.ogm_sqn_last = frame.agg_sqn_no
-            
+
+@dataclass
+class description_hash:
+    u8: int                             # array[HASH_SHA1_LEN] - [20]
+    u32: int 
+
+# avl_tree dhash_tree
+# avl_tree dhash_invalid_tree
+
+@dataclass
+class dhash_node:
+    dhash: description_hash             
+
+    referred_by_me_timestamp: time      # TIME_T
+
+    neigh: list                         # neigh_node
+
+    myIID4origL: int                    # IID_T
+    
+    orig_n: list                        # orig_node
+
 # avl_tree neigh_trees
 
+# node's own iid_ref consistent in my_iid_repos and neigh_repos
 @dataclass
 class iid_ref:
     myIID4x: int                         # IID_T
     referred_by_neigh_timestamp_sec: int        
 
 @dataclass
+class iid_entry:
+    u8: int         # repos identifier
+    ref: iid_ref    # universal iid_ref
+    dhash_n: dhash_node
+
+@dataclass
 class iid_repos:
-    # arr_size: int
-    # min_free: int
-    # max_free: int
-    # tot_used: int
-    arr: dict                           # maps IID to its hash 
-    ref: iid_ref
+    arr_size: int = 0  # number of allocated array fields; = max()?
+    min_free: int = 0  # first unused key from beginning of dictionary
+    max_free: int = 0  # first unused key after the last used field in the dictionary; =max()+1
+    tot_used: int = 0  # total number of used keys; len()
+    
+    arr: list = field(default_factory = lambda:[])      # maps iid to corresponding dhash_node 
 
     def print_repos(self):              # prints repository table contents
         print(self.arr)
         print("-----")
 
+    def iid_set(self, IIDpos, myIID4x, dhnode):
+        # setting iid_repos attributes
+        self.tot_used += 1
+        self.max_free = max(self.max_free, myIID4x + 1)
+
+        min = self.min_free     # list index of first unused key from beginning of list
+        if (min == IIDpos):     # and min <= self.max_free ?
+            min += 1
+            # increment until next free position
+            for entry in self.arr[min:]:
+                try:
+                    if (entry.u8 == min):
+                        min += 1
+                except KeyError: break
+
+        self.min_free = min
+
+        if (myIID4x):
+            self.arr[IIDpos].ref.myIID4x = myIID4x
+            self.arr[IIDpos].ref.referred_by_neigh_timestamp_sec = time.perf_counter()
+        else:
+            self.arr[IIDpos].node = dhnode
+            dhnode.referred_by_me_timestamp = time.perf_counter()
+
+
 @dataclass
 class neigh_node:
     neigh_node_key: list                # neigh_node
     dhash_n: list                       # dhash_node                 
+    # list of dhash_node already contained within iid_repos; will contain reference to my_iid_repos instead
 
     local: list                         # local_node
 
@@ -417,12 +397,7 @@ class neigh_node:
                 print("Retrieved hash from local IID repository: " + my_iid.arr[myIID4x])
 
 
-# avl_tree orig_tree
-
-@dataclass
-class description_hash:
-    u8: int                             # array[HASH_SHA1_LEN] - [20]
-    u32: int                            # array[HASH_SHA1_LEN/4] - [20/4]
+# avl_tree orig_tree                           # array[HASH_SHA1_LEN/4] - [20/4]
 
 @dataclass
 class desc_tlv_hash_node:
@@ -439,24 +414,24 @@ class host_metricalgo:
 
     umetric_min: int  # UMETRIC_T
     algo_type: int  # ALGO_T
-    flags: int  # uint16_t
-    algo_rp_exp_numerator: int  # uint8_t
-    algo_rp_exp_divisor: int  # uint8_t
-    algo_tp_exp_numerator: int  # uint8_t
-    algo_tp_exp_divisor: int  # uint8_t
+    flags: int  # uint16_t              # seen in hna.h
+    algo_rp_exp_numerator: int = 1      # default 1 (0-3) (uint8_t)
+    algo_rp_exp_divisor: int = 2        # default 2 (0-3) (uint8_t)
+    algo_tp_exp_numerator: int = 1      # default 1 (0-3) (uint8_t)
+    algo_tp_exp_divisor: int = 1        # default 1 (1-2) (uint8_t)
 
-    window_size: int  # uint8_t
-    lounge_size: int  # uint8_t
-    regression: int  # uint8_t
+    window_size: int = 5                # default 5 (1-250) (uint8_t)
+    lounge_size: int = 1                # deafult 1 (0-10) (uint8_t)
+    regression: int = 1                 # default 1 (1-255) (uint8_t)
     # fast_regression: int   # uint8_t
     # fast_regression_impact: int    # uint8_t
-    hystere: int  # uint8_t
-    hop_penalty: int  # uint8_t
-    late_penalty: int  # uint8_t
+    #hystere: int  # uint8_t         # used for HNA annoucements # excluded for now
+    hop_penalty: int = 0             # (uint8_t) default 0 (0-255) #Penalize non-first received OGM ADVs in 1/255 (each hop will substract metric*(VALUE/255) from current path-metric).
+    #late_penalty: int  # uint8_t    # penalize non-first received ogm advs  # excluded for now
 
 @dataclass
 class orig_node:    
-    global_id: int              # GLOBAL_ID_T (32 len) + PKID_T # default -1
+    global_id: str             # GLOBAL_ID_T (32 len) + PKID_T # default None
 
     dhash_n: list               # dhash_node   # default dhash_node
     desc: int  # **description (MISSING???) # default = None # DESC_ADV
@@ -490,6 +465,16 @@ class orig_node:
     best_rt_local: router_node
     curr_rt_local: router_node
     curr_rt_linkdev: link_dev_node
+    
+    def global_id_gen(self):    
+        name = socket.gethostname()
+        randomm = randint(75557863725914323419136, 1208925819614629174706175)  # 1 w/ 19 0's in decimal, 20 F's
+        x = hex(randomm)  # str output
+        formatt = x[2:]
+        glid = name + "." + formatt
+        self.global_id = glid
+
+        return glid
         
     def update_self(self, frame):     # create global id (160bits)
         #changed = 0        # use for tracking change in self.desc
@@ -522,22 +507,6 @@ class orig_node:
             self.ogm_sqn_send = frame.agg_sqn_no
 
         return ack_msg1, ack_msg2
-
-
-# avl_tree dhash_tree
-# avl_tree dhash_invalid_tree
-
-@dataclass
-class dhash_node:
-    dhash: description_hash             
-
-    referred_by_me_timestamp: time      # TIME_T
-
-    neigh: list                         # neigh_node
-
-    myIID4origL: int                    # IID_T
-    
-    orig_n: list                        # orig_node
 
 
 # avl_tree blacklisted_tree
