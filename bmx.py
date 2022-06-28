@@ -527,33 +527,25 @@ def dissect_RP_ADV(recvd_RP_ADV):
 
 
 def RP_ADV_msg_to_bytes(RP_ADV_msg):
-	#since rp_ADV_msg is 1 byte, the first 7 bits is the rp_127range, and the last bit is the ogm_req
-	#rp_127range's maximum value is 127 that's why if ogm_req is 1, add 128(2^7, since ogm_req is in
-	# the 8th position of 8 bits)
-	if RP_ADV_msg.ogm_req == 1: 
-		ogm_req_and_rp_127range = RP_ADV_msg.rp_127range + 128
-	else:
-		ogm_req_and_rp_127range = RP_ADV_msg.rp_127range
 
-	#print(ogm_req_and_rp_127range)
-	rp_adv_msg_bytes = struct.pack("!B", ogm_req_and_rp_127range)
-	
+	# using bitshifting and OR bitwise operation to store ogm_req(1 bit) and rp_127range(7 bit) into 1 byte(8bits)
+	ogmreq_and_rp127range = (RP_ADV_msg.rp_127range << 1) | RP_ADV_msg.ogm_req
+
+	rp_adv_msg_bytes = struct.pack("!B", ogmreq_and_rp127range)
+
 	return rp_adv_msg_bytes
 
 def dissect_RP_ADV_msg(recvd_RP_msg):
-	#combined ogm_req(1 bit) to rp_127range(7 bits)
-	#ogmreq_rp127range = struct.unpack("!B", recvd_RP_msg)
-	ogmreq_rp127range = recvd_RP_msg
 
-	#checking if the 8th bit is 1 or 0. 
-	if ogmreq_rp127range >= 128:
-		RP_ADV_msg = frames.RP_ADV_msg(ogmreq_rp127range - 128, 1)
+	recvd_RP_msg_bytes = struct.unpack("!B", recvd_RP_msg)
+	ogmreq_and_rp127range = recvd_RP_msg_bytes[0]
 
-	else:
-		RP_ADV_msg = frames.RP_ADV_msg(ogmreq_rp127range, 0)
+	rp_127range = (ogmreq_and_rp127range >> 1) & 127
+	ogm_req = ogmreq_and_rp127range & 1
 
-	return RP_ADV_msg
-	
+	rp_msg = frames.RP_ADV_msg(rp_127range, ogm_req)
+
+	return rp_msg
 
 def LINK_REQ_to_bytes(LINK_REQ):
 	LINK_REQ = set_frame_header(LINK_REQ)
