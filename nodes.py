@@ -48,14 +48,12 @@ class local_node:
     orig_routes: int = -1                                                           # store originator
     
     def pkt_received(self, packet_header):
-        if self.packet_sqn != packet_header.pkt_sqn:
-            pass        # send LINK_REQ
         self.packet_sqn = packet_header.pkt_sqn
         self.packet_time = (time.perf_counter() - start_time) * 1000            # bmx.start_time
         self.packet_link_sqn_ref = packet_header.link_adv_sqn
 
         for ln in self.link_tree:
-            if((ln.key.local_id == packet_header.local_id) and (ln.key.local_id == packet_header.local_id)):
+            if((ln.key.local_id == packet_header.local_id) and (ln.key.dev_idx == packet_header.dev_idx)):
                 ln.pkt_time_max = self.packet_time
                 for lndev in ln.lndev_list:
                     if(lndev.key.dev.active == 1):

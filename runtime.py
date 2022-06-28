@@ -21,16 +21,17 @@ import frames
 ln_head = frames.header(0,0,0,0)
 ln_msg = frames.LINK_ADV_msg(1,1,1)
 ln_frame = frames.LINK_ADV(ln_head, 1, [ln_msg])
-head = bmx.packet_header(0,0,0,0,0,0,0,0)
+head = bmx.packet_header(0,0,0,0,0,0,11111,0)
 packet = bmx.packet(head, [ln_frame])
 
 
 # INITIALIZATION
 
 local_ids = []                  # list of local_ids
-local_list = []                  # list of local_nodes
+local_list = []                 # list of local_nodes
 link_keys = []                  # list of link_node_key
 link_list = []                  # list of link_nodes
+# link_dev_keys = []              # list of link_dev_keys
 link_dev_list = []              # list of link_dev_nodes
 dev_list = []                   # list of devices (includes loopback interface and inactive devices)
 # node_IIDs = []                # list of local_IIDs (can be substituted by however Geom does)
@@ -119,11 +120,11 @@ def print_interfaces(iflist):
     print()
 
 def local_id_gen(mac_addr):
-    # | byte 3 | byte 2 | byte 1 | byte 0 |
-    # | mac[3] | mac[2] | mac[1] | random |
-    lid = int(mac_addr[6]+mac_addr[7], 16) << 8
-    lid = lid + int(mac_addr[9]+mac_addr[10], 16) << 8
+    # | lid[3] | lid[2] | lid[1] | lid[0] |
+    # | mac[5] | mac[4] | mac[3] | random |
+    lid = int(mac_addr[15]+mac_addr[16], 16) << 8
     lid = lid + int(mac_addr[12]+mac_addr[13], 16) << 8
+    lid = lid + int(mac_addr[9]+mac_addr[10], 16) << 8
     lid = lid + random.randint(0,255)
 
     return lid
@@ -153,64 +154,63 @@ print("local_id =", loid,'\n')
 # PACKET HANDLING
 
 def packet_received(self, ip6):
+    # INITIALIZATION
+    active_known = 0
+    active_devices = 0
+    get_interfaces(dev_list)                        # get latest device list
+
     # check if the packet sender already has a local_node for the sender
-        # exists = check_if_exists(self.header.local_id, local_ids)    
-    if(check_if_exists(self.header.local_id, local_ids) == -1):                       # new node (INITIALIZATION and UPDATES)
+    if(check_if_exists(self.header.local_id, local_ids) == -1):         # new local_node
         # create new local_node and link_node objects for the new node
         local = nodes.local_node(local_id = self.header.local_id)       # initialize new local_node
-        local.link_tree.append(nodes.link_node(local = main_local))     # add link from new node to the main
+        # local.link_tree.append(nodes.link_node(local = main_local))   # add link from new node to the main
         
         # store new info in the global arrays
         local_ids.append(local.local_id)        # store in global local_id list
         local_list.append(local)                 # store in global local_node list
 
-        # add the new link to the main local_node
-        ln_key = nodes.link_node_key(self.header.local_id, self.header.dev_idx)
-        ln = nodes.link_node(local = local, key = ln_key)
-        main_local.link_tree.append(ln)                                 # add link from main to new node
-
-
-        link_keys.append(ln_key)                # store in global link_node_key list
-        link_list.append(ln)                    # store in global link_node list
-
-        # add link_dev_nodes to the new link
-        get_interfaces(dev_list)                # get latest device list
-        for dev in dev_list:
-            if((dev.type != 0) and (dev.active == 1)):
-                lndev = nodes.link_dev_node(key = nodes.link_dev_key(ln, dev))
-                ln.lndev_list.append(lndev)                             # add lndev to the the link's lndev_list
-
-                link_dev_list.append(lndev)     # store in global link_dev_node list
     # check if the local_node knows the link
     if(check_if_exists(nodes.link_node_key(self.header.local_id, self.header.dev_idx), main_local.link_tree) == -1):
         # check if the link exists in the global link_node list
-        if(check_if_exists(nodes.link_node_key(self.header.local_id, self.header.dev_idx), link_keys)):
-            main_local.link_tree.append(link_list[check_if_exists(nodes.link_node_key(self.header.local_id, self.header.dev_idx))])
-        else:
+        if(check_if_exists(nodes.link_node_key(self.header.local_id, self.header.dev_idx), link_keys) >= 0):
+            main_local.link_tree.append(link_list[check_if_exists(nodes.link_node_key(self.header.local_id, self.header.dev_idx), link_keys)])
+        else:                                                           # new link_node
             # add the new link to the main local_node
             ln_key = nodes.link_node_key(self.header.local_id, self.header.dev_idx)
             ln = nodes.link_node(local = local_list[check_if_exists(self.header.local_id, local_ids)], key = ln_key)
-            main_local.link_tree.append(ln)                             # add link from main to new node
+            main_local.link_tree.append(ln)                                                     # add link to the main node
+            local_list[check_if_exists(self.header.local_id, local_ids)].link_tree.append(ln)   # add link to the new node
 
             # store new info in the global arrays
             link_keys.append(ln_key)                # store in global link_node_key list
             link_list.append(ln)                    # store in global link_node list
 
             # add link_dev_nodes to the new link
-            get_interfaces(dev_list)                # get latest device list
             for dev in dev_list:
                 if((dev.type != 0) and (dev.active == 1)):
                     lndev = nodes.link_dev_node(key = nodes.link_dev_key(ln, dev))
-                    ln.lndev_list.append(lndev)                             # add lndev to the the link's lndev_list
-
+                    ln.lndev_list.append(lndev)     # add lndev to the the link's lndev_list
                     link_dev_list.append(lndev)     # store in global link_dev_node list
+
+    # check if lndevs are correct
+    for lndev in link_list[check_if_exists(nodes.link_node_key(self.header.local_id, self.header.dev_idx), link_keys)].lndev_list:
+        if(lndev.key.dev.active == 1):
+            active_known =  active_known + 1        # known lndev_active
+    for dev in dev_list:
+        if((dev.type != 0) and (dev.active == 1)):
+            active_devices = active_devices + 1
+    if(active_known < active_devices):              # if there is a mismatch, then there is new active device
+        for dev in dev_list:
+            if((dev.type != 0) and (dev.active == 1) and (dev.idx > len(link_list[check_if_exists(nodes.link_node_key(self.header.local_id, self.header.dev_idx))].lndev_list))):  
+                lndev = nodes.link_dev_node(key = nodes.link_dev_key(link_list[check_if_exists(nodes.link_node_key(self.header.local_id, self.header.dev_idx))], dev))
+                link_list[check_if_exists(nodes.link_node_key(self.header.local_id, self.header.dev_idx))].lndev_list.append(lndev)                             # add lndev to the the link's lndev_list
+                link_dev_list.append(lndev)     # store in global link_dev_node list
             
     main_local.pkt_received(self.header)
 
     
 
 
-    node_list[exists].pkt_received(self.header)
 
 
     # FRAMES TO BE SENT
@@ -330,10 +330,11 @@ def print_all(nodes):
         print("    rp_ogm_request_received =", local.rp_ogm_request_received)
         print("    orig_routes =", local.orig_routes)
         i1 = i1 + 1
+        print()
 
 
 # TESTING
 
 packet_received(packet, '::1')
-print_all(node_list)
+print_all(local_list)
 # print("IIDs:", node_IIDs)
