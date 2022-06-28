@@ -9,9 +9,9 @@ from importlib.machinery import OPTIMIZED_BYTECODE_SUFFIXES
 # import bmx
 import frames
 from random import randint
+from runtime import my_iid_repos
 
 start_time = time.perf_counter()
-
 
 # avl_tree local_tree
 
@@ -327,6 +327,11 @@ class iid_repos:
         print(self.arr)
         print("-----")
 
+    def get_iid_entry(self, IID):
+        for entry in self.arr:
+            if (entry.u8 == IID):
+                return entry
+
     def iid_set(self, IIDpos, myIID4x, dhnode):
         # setting iid_repos attributes
         self.tot_used += 1
@@ -346,11 +351,10 @@ class iid_repos:
 
         if (myIID4x):
             self.arr[IIDpos].ref.myIID4x = myIID4x
-            self.arr[IIDpos].ref.referred_by_neigh_timestamp_sec = time.perf_counter()
+            self.arr[IIDpos].ref.referred_by_neigh_timestamp_sec = (time.perf_counter() - start_time) * 1000
         else:
             self.arr[IIDpos].node = dhnode
-            dhnode.referred_by_me_timestamp = time.perf_counter()
-
+            dhnode.referred_by_me_timestamp = (time.perf_counter() - start_time) * 1000
 
 @dataclass
 class neigh_node:
@@ -374,6 +378,23 @@ class neigh_node:
             self.ogm_aggregations_received = frame.agg_sqn_no
             self.ogm_new_aggregation_received = frame.agg_sqn_no
         pass
+
+    def iid_set_neighIID4x(self, neighIID4x, myIID4x):
+        self.referred_by_me_timestamp = (time.perf_counter() - start_time) * 1000
+        repos = self.neighIID4x_repos
+
+        if (repos.max_free > neighIID4x):
+            # function 
+            # ref = (repos.get_iid_entry()).ref
+            
+            # if (ref->myIID4x > IID_RSVD_MAX) 
+            pass
+
+        while (repos.arr_size <= neighIID4x):   # for catching errors and ectending repos; might not be needed
+            if (repos.arr_size > 32 and repos.arr_size > my_iid_repos.arr_size):
+                print("IID_REPOS USAGE WARNING")
+
+        repos.iid_set(neighIID4x, myIID4x)
 
     def get_myIID4x_by_neighIID4x(self, neighIID4x):
         myIID4x = self.neighIID4x_repos.arr[neighIID4x]
