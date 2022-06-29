@@ -7,7 +7,7 @@ from dataclasses import dataclass, field
 import socket
 import random
 
-from numpy import append
+from numpy import append, empty
 
 import psutil
 # import subprocess
@@ -16,14 +16,19 @@ import nodes
 import frames
 # import miscellaneous
 
-my_iid_repos = nodes.iid_repos()
+# my_iid_repos = nodes.iid_repos()
 
 # TESTING
-ln_head = frames.header(0,0,0,0)
+fhead = frames.header(0,0,0,0)
 ln_msg = frames.LINK_ADV_msg(1,1,1)
-ln_frame = frames.LINK_ADV(ln_head, 1, [ln_msg])
-head = bmx.packet_header(0,0,0,0,0,0,11111,0)
-packet = bmx.packet(head, [ln_frame])
+ln_frame = frames.LINK_ADV(fhead, 1, [ln_msg])
+rp_msg = frames.RP_ADV_msg(127,1)
+rp_frame = frames.RP_ADV(fhead, [rp_msg])
+hello_frame = frames.HELLO_ADV(fhead,10)
+head = bmx.packet_header(0,0,0,0,1,0,11111,0)
+head2 = bmx.packet_header(0,0,0,0,1,1,11111,0)
+packet = bmx.packet(head, [ln_frame, hello_frame, rp_frame])
+packet2 = bmx.packet(head2, [hello_frame, rp_frame])
 
 
 # INITIALIZATION
@@ -132,19 +137,26 @@ def local_id_gen(mac_addr):
 
 def check_if_exists(object, object_list):
     i = 0
-    for x in object_list:
-        if(object_list[i] == object):   # if the object is in the list, then it exists
-            return i                    # index is returned
-        i = i + 1
+    if(type(object_list) == list):
+        for x in object_list:
+            if(object_list[i] == object):   # if the object is in the list, then it exists
+                return i                    # index is returned
+            i = i + 1
+    else:
+        if(object_list == [object]):
+            return 0
+        else:
+            return -1
     return -1                           # object not found 
 
 
 lomac = get_interfaces(dev_list)                # gets the MAC address
 loid = local_id_gen(lomac)                      # generates the local_id of the main node
-main_local = nodes.local_node(local_id = loid)  # main local_node (node of itself)
+# main_local = nodes.local_node(local_id = loid)  # main local_node (node of itself)
+main_local = nodes.local_node(local_id = 1)     # main local_node (node of itself)
 
 local_ids.append(loid)                          # store in global local_id list
-local_list.append(main_local)                    # store in global local_node list
+local_list.append(main_local)                   # store in global local_node list
 
 print_interfaces(dev_list)
 print(lomac)
@@ -171,20 +183,27 @@ def packet_received(self, ip6):
         local_list.append(local)                 # store in global local_node list
 
     # check if the local_node knows the link
-    if(check_if_exists(nodes.link_node_key(self.header.local_id, self.header.dev_idx), main_local.link_tree) == -1):
+    print("knows link?", check_if_exists(nodes.link_node_key(self.header.local_id, self.header.dev_idx), main_local.link_tree))
+    print("comparison:", nodes.link_node_key(self.header.local_id, self.header.dev_idx))
+    print("link_keys:", link_keys)
+
+
+    if(check_if_exists(nodes.link_node_key(self.header.local_id, self.header.dev_idx), link_keys) == -1):
         # check if the link exists in the global link_node list
         if(check_if_exists(nodes.link_node_key(self.header.local_id, self.header.dev_idx), link_keys) >= 0):
             main_local.link_tree.append(link_list[check_if_exists(nodes.link_node_key(self.header.local_id, self.header.dev_idx), link_keys)])
         else:                                                           # new link_node
             # add the new link to the main local_node
             ln_key = nodes.link_node_key(self.header.local_id, self.header.dev_idx)
-            ln = nodes.link_node(local = local_list[check_if_exists(self.header.local_id, local_ids)], key = ln_key)
+            ln = nodes.link_node(local = local_list[check_if_exists(self.header.local_id, local_ids)], key = ln_key, link_ip = ip6)
             main_local.link_tree.append(ln)                                                     # add link to the main node
             local_list[check_if_exists(self.header.local_id, local_ids)].link_tree.append(ln)   # add link to the new node
 
             # store new info in the global arrays
             link_keys.append(ln_key)                # store in global link_node_key list
             link_list.append(ln)                    # store in global link_node list
+            print(link_keys)
+            print(link_list)
 
             # add link_dev_nodes to the new link
             for dev in dev_list:
@@ -193,8 +212,10 @@ def packet_received(self, ip6):
                     ln.lndev_list.append(lndev)     # add lndev to the the link's lndev_list
                     link_dev_list.append(lndev)     # store in global link_dev_node list
 
+    link_index = check_if_exists(nodes.link_node_key(self.header.local_id, self.header.dev_idx), link_keys)
+
     # check if lndevs are correct
-    for lndev in link_list[check_if_exists(nodes.link_node_key(self.header.local_id, self.header.dev_idx), link_keys)].lndev_list:
+    for lndev in link_list[link_index].lndev_list:
         if(lndev.key.dev.active == 1):
             active_known =  active_known + 1        # known lndev_active
     for dev in dev_list:
@@ -204,48 +225,87 @@ def packet_received(self, ip6):
         for dev in dev_list:
             if((dev.type != 0) and (dev.active == 1) and (dev.idx > len(link_list[check_if_exists(nodes.link_node_key(self.header.local_id, self.header.dev_idx))].lndev_list))):  
                 lndev = nodes.link_dev_node(key = nodes.link_dev_key(link_list[check_if_exists(nodes.link_node_key(self.header.local_id, self.header.dev_idx))], dev))
-                link_list[check_if_exists(nodes.link_node_key(self.header.local_id, self.header.dev_idx))].lndev_list.append(lndev)                             # add lndev to the the link's lndev_list
+                link_list[link_index].lndev_list.append(lndev)                             # add lndev to the the link's lndev_list
                 link_dev_list.append(lndev)     # store in global link_dev_node list
             
     main_local.pkt_received(self.header)
 
-    
+
+    # FRAME ITERATION
+    link_req = 0    # set to 1 if a REQ must be sent
+    dev_req = 0     # set to 1 if a REQ must be sent
+    rp = []         # holds rp_adv messages
+    for frame in self.frames:
+        if(type(frame) == frames.LINK_ADV):         # LINK_ADV
+            main_local.link_adv_received(frame)
+        elif(type(frame) == frames.LINK_REQ):       # LINK_REQ
+            link_req = main_local.link_req_received(frame)
+        elif(type(frame) == frames.DEV_ADV):        # DEV_ADV
+            main_local.dev_adv_received(frame)
+        elif(type(frame) == frames.DEV_REQ):        # DEV_REQ
+            dev_req = main_local.dev_req_received(frame)
+        elif(type(frame) == frames.RP_ADV):         # RP_ADV
+            rp = frame.rp_msgs
+            main_local.rp_adv_received(frame)
+
+        elif(type(frame) == frames.HELLO_ADV):      # HELLO_ADV
+            if(link_index >= 0):
+                link_list[link_index].hello_adv_received(frame)
+                for lndev in link_list[link_index].lndev_list:
+                    if(lndev.key.dev.active == 1):
+                        lndev.hello_adv_received(frame)
 
 
+    # match rp_adv msgs with link_adv msgs
+    if rp:
+        rp_index = 0
+        for link_msg in main_local.link_adv:
+            if(link_msg.peer_local_id == main_local.local_id):
+                for lndev in link_list[link_index].lndev_list:
+                    if((link_msg.peer_dev_index == lndev.key.dev.idx) and (lndev.key.dev.active == 1)):
+                        lndev.tx_probe_umetric = rp[rp_index].rp_127range
+            rp_index = rp_index + 1
+
+    # obtain timeaware tx and rx values
+    for lndev in link_dev_list:                     # TO DO: check if update is critical
+        lndev.update_tx()
+        lndev.update_rx()
+        # assign best link_dev_node for transmitting
+        if main_local.best_tp_linkdev:
+            if(lndev.timeaware_tx_probe < main_local.best_tp_linkdev[0].timeaware_tx_probe):
+                main_local.best_tp_linkdev[0] = lndev
+        else:
+            main_local.best_tp_linkdev = [lndev]
+        # assign best link_dev_node for receiving
+        if main_local.best_rp_linkdev:
+            if(lndev.timeaware_rx_probe < main_local.best_rp_linkdev[0].timeaware_rx_probe):
+                main_local.best_rp_linkdev[0] = lndev
+        else:
+            main_local.best_rp_linkdev = [lndev]
+    # assign best link_dev_node
+    if(main_local.best_rp_linkdev == main_local.best_tp_linkdev):
+        main_local.best_linkdev = main_local.best_rp_linkdev
+    else:
+        main_local.best_linkdev = []
+
+    # time.sleep(10)
+    # print(time.perf_counter())
+    # print(nodes.start_time)
+    # print((time.perf_counter() - nodes.start_time) *1000)
 
 
     # FRAMES TO BE SENT
 
     # HELLO_ADV
     # RP_ADV
-    if(main_local.packet_sqn != self.header.pkt_sqn):
+    if(main_local.packet_link_sqn_ref != self.header.link_adv_sqn):
         pass
         # send LINK_REQ
         # send unsolicited LINK_ADV
     # LINK_ADV
 
-    #                                   # update packet-related class attributes
-    #     for frame in self.frames:
-    #         if(type(frame) == frames.HELLO_ADV):    # HELLO_ADV
-    #             for ln in local.link_tree:
-    #                 ln.frame_received(frame)
-    #         elif(type(frame) == frames.LINK_ADV):   # LINK_ADV
-    #             local.link_adv_received(frame)
-    #             for msg in local.link_adv:
-    #                 link_key = nodes.link_node_key(msg.peer_local_id, msg.peer_dev_index)
-    #                 for link in local.link_tree:
-    #                     if()
-                
-    #             for ln in local.link_tree:  # has to check first how many lndev_nodes there are and where to add
-    #                 lndev_key = nodes.link_dev_key
-    #                 ln.linkdev_list.append(nodes.link_dev_node(key = lndev_key))
 
-    #         elif(type(frame) == frames.DEV_ADV):    # DEV_ADV
-    #             local.dev_adv_received(frame)  
-    #         elif(type(frame) == frames.RP_ADV):     # RP_ADV
-    #             local.rp_adv_received(frame)  
-    #     node_list.append(local)
-    #     # node_IIDs.append(local.local_id)
+
     
     
     
@@ -271,7 +331,7 @@ def print_all(nodes):
         i2 = 1
         for link in local.link_tree:
             print('\t\t', "    link_node", i2, ":")
-            print('\t\t\t', "local = local", i1)
+            print('\t\t\t', "local =", link.local.local_id)
             print('\t\t\t', "key =", link.key)
             print('\t\t\t', "link_ip =", link.link_ip)
             print('\t\t\t', "pkt_time_max =", link.pkt_time_max)
@@ -310,26 +370,36 @@ def print_all(nodes):
                 i3 = i3 + 1
                 print()
             i2 = i2 + 1
-        print("    best_rp_linkdev =", local.best_rp_linkdev)
-        print("    best_tp_linkdev =", local.best_tp_linkdev)
-        print("    best_linkdev =", local.best_linkdev)
-        print("    neigh =", local.neigh)
-        print("    packet_sqn =", local.packet_sqn)
-        print("    packet_time =", local.packet_time)
-        print("    packet_link_sqn_ref =", local.packet_link_sqn_ref)
-        print("    link_adv_sqn =", local.link_adv_sqn)
-        print("    link_adv_time =", local.link_adv_time)
-        print("    link_adv_msgs =", local.link_adv_msgs)
-        print("    link_adv_msg_for_me =", local.link_adv_msg_for_me)
-        print("    link_adv_msg_for_him =", local.link_adv_msg_for_him)
-        print("    link_adv =", local.link_adv)
-        print("    link_adv_dev_sqn_ref =", local.link_adv_dev_sqn_ref)
-        print("    dev_adv_sqn =", local.dev_adv_sqn)
-        print("    dev_adv_msgs =", local.dev_adv_msgs)
-        print("    dev_adv =", local.dev_adv)
-        print("    rp_adv_time =", local.rp_adv_time)
-        print("    rp_ogm_request_received =", local.rp_ogm_request_received)
-        print("    orig_routes =", local.orig_routes)
+        if(i1 == 1):
+            if local.best_rp_linkdev:
+                print("    best_rp_linkdev = link_dev_key(link=", local.best_rp_linkdev[0].key.link.key, ", dev=", local.best_rp_linkdev[0].key.dev.idx, ")",sep='')
+            else:
+                print("    best_rp_linkdev = []")
+            if local.best_tp_linkdev:            
+                print("    best_tp_linkdev = link_dev_key(link=", local.best_tp_linkdev[0].key.link.key, ", dev=", local.best_tp_linkdev[0].key.dev.idx, ")",sep='')
+            else:
+                print("    best_tp_linkdev = []")
+            if local.best_linkdev: 
+                print("    best_linkdev = link_dev_key(link=", local.best_linkdev[0].key.link.key, ", dev=", local.best_linkdev[0].key.dev.idx, ")",sep='')
+            else:
+                print("    best_tp_linkdev = []")
+            print("    neigh =", local.neigh)
+            print("    packet_sqn =", local.packet_sqn)
+            print("    packet_time =", local.packet_time)
+            print("    packet_link_sqn_ref =", local.packet_link_sqn_ref)
+            print("    link_adv_sqn =", local.link_adv_sqn)
+            print("    link_adv_time =", local.link_adv_time)
+            print("    link_adv_msgs =", local.link_adv_msgs)
+            print("    link_adv_msg_for_me =", local.link_adv_msg_for_me)
+            print("    link_adv_msg_for_him =", local.link_adv_msg_for_him)
+            print("    link_adv =", local.link_adv)
+            print("    link_adv_dev_sqn_ref =", local.link_adv_dev_sqn_ref)
+            print("    dev_adv_sqn =", local.dev_adv_sqn)
+            print("    dev_adv_msgs =", local.dev_adv_msgs)
+            print("    dev_adv =", local.dev_adv)
+            print("    rp_adv_time =", local.rp_adv_time)
+            print("    rp_ogm_request_received =", local.rp_ogm_request_received)
+            print("    orig_routes =", local.orig_routes)
         i1 = i1 + 1
         print()
 
@@ -338,4 +408,8 @@ def print_all(nodes):
 
 packet_received(packet, '::1')
 print_all(local_list)
-# print("IIDs:", node_IIDs)
+packet_received(packet2, '::1')
+print_all(local_list)
+# print(local_ids)
+# print(link_keys)
+# print(link_list)
