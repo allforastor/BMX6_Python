@@ -1129,7 +1129,7 @@ def dissect_OGM_ADV(recvd_OGM_ADV):
 
 
 
-
+'''
 #adding request frames to frames 2 send list alongside with the unsolicited adv frames
 def send_REQ_frame(REQ_frame, frames2send):
     #if we wish to send LINK_REQ, it will append LINK_REQ and LINK_ADV to frames2send list 
@@ -1165,7 +1165,7 @@ def send_ADV_frames(recvd_frames, frames2send):
 
         if i == frames.DEV_REQ:
             frames2send.append(frames.DEV_ADV)
-        
+ '''       
 
         
         
@@ -1199,7 +1199,7 @@ while True:
         else:
             recvd_frames = recvd.frames #store packet frames list to recevd_frames
             
-            send_ADV_frames(recvd_frames, frames2send) 
+            #send_ADV_frames(recvd_frames, frames2send) 
 
             knowsAllNodes = True #then knows every node
 
