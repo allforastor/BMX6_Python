@@ -3,6 +3,7 @@ import sys
 import random
 import socket
 import pickle
+from xml.etree.ElementTree import canonicalize
 import frames as frames
 import time
 from datetime import datetime
@@ -103,7 +104,7 @@ def create_packet(packetheader, frameslist):
 			frames_bytes += HELLO_ADV_to_bytes(i)
 
 		elif type(i) == frames.RP_ADV:
-			frames_bytes+= RP_ADV_to_bytes(i)
+			frames_bytes += RP_ADV_to_bytes(i)
 
 		elif type(i) == frames.LINK_REQ:
 			frames_bytes += LINK_REQ_to_bytes(i)
@@ -412,6 +413,20 @@ def set_frame_header(frame):
 
 	elif type(frame) == frames.DESC_ADV:
 		frame_type = frame_type_DESC_ADV
+		reserved = 0
+		extension_frame_length_counter = 0
+		for i in frame.desc_msgs:
+			extension_frame_length_counter += i.ext_len
+
+		if len(frame.desc_msgs)*70 + extension_frame_length_counter + short_frame_header_length > 255:
+			short_frame = 0
+			frame_length = long_frame_header_length + len(frame.desc_msgs)*70 + extension_frame_length_counter
+			created_frame = frames.DESC_ADV(frames.long_header(short_frame, relevant_frame, frame_type, reserved, frame_length), frame.desc_msgs)
+
+		else:
+			short_frame = 1
+			frame_length = short_frame_header_length + len(frame.desc_msgs)*70 + extension_frame_length_counter
+			created_frame = frames.DESC_ADV(frames.short_header(short_frame, relevant_frame, frame_type, frame_length), frame.desc_msgs)
 
 	elif type(frame) == frames.HASH_REQ:
 		frame_type = frame_type_HASH_REQ
@@ -514,11 +529,13 @@ def dissect_RP_ADV(recvd_RP_ADV):
 		frame_header = dissect_long_frame_header(recvd_RP_ADV[:4])
 		rp_adv_msg_list_raw = recvd_RP_ADV[4:]
 
+	rp_adv_msg_list_raw_size = len(rp_adv_msg_list_raw)
 	rp_adv_msg_list = []
 
-	for i in rp_adv_msg_list_raw:
+	for i in range(0, rp_adv_msg_list_raw_size):
 		#iterate through the raw rp_adv_msg_list to properly parse each rp_adv_msgs
-		rp_adv_msg_list.append(dissect_RP_ADV_msg(i))
+		x = dissect_RP_ADV_msg(rp_adv_msg_list_raw[i:(i + 1)])
+		rp_adv_msg_list.append(x)
 		
 
 	rp_adv = frames.RP_ADV(frame_header, rp_adv_msg_list)
@@ -536,9 +553,9 @@ def RP_ADV_msg_to_bytes(RP_ADV_msg):
 	return rp_adv_msg_bytes
 
 def dissect_RP_ADV_msg(recvd_RP_msg):
-
-	recvd_RP_msg_bytes = struct.unpack("!B", recvd_RP_msg)
-	ogmreq_and_rp127range = recvd_RP_msg_bytes[0]
+	
+	recvd_RP_msg = struct.unpack("!B", recvd_RP_msg)
+	ogmreq_and_rp127range = recvd_RP_msg[0]
 
 	rp_127range = (ogmreq_and_rp127range >> 1) & 127
 	ogm_req = ogmreq_and_rp127range & 1
@@ -767,12 +784,12 @@ def dissect_DESC_REQ(recvd_DESC_REQ):
 		frame_header = dissect_long_frame_header(recvd_DESC_REQ[:4]) #since short header size is 4 bytes
 		desc_req_msg_list_raw = recvd_DESC_REQ[4:] #received dev_adv_msgs are from 4 bytes onwards
 	
-	desc_req_msg_lis_raw_size = len(desc_req_msg_list_raw)
+	desc_req_msg_list_raw_size = len(desc_req_msg_list_raw)
 	desc_req_msg_list = []
 
 	#iterate through every 6 bytes since the length of a desc_req_msg is 6 bytes
 	# 4 bytes = destination local id and 2 bytes = receiver iid
-	for i in range(0, desc_req_msg_lis_raw_size, 6):
+	for i in range(0, desc_req_msg_list_raw_size, 6):
 		x = dissect_DESC_REQ_msg(desc_req_msg_list_raw[i:(i + 6)]) #dissects the 6 bytes
 		desc_req_msg_list.append(x)
 
@@ -781,16 +798,87 @@ def dissect_DESC_REQ(recvd_DESC_REQ):
 	return desc_req
 
 def DESC_ADV_msg_to_bytes(DESC_ADV_msg):
-	pass
+	transmitterIID4x = DESC_ADV_msg.trans_iid4x
+	name = DESC_ADV_msg.name
+	pkid = DESC_ADV_msg.pkid
+	code_version = DESC_ADV_msg.code_version
+	capabilities = DESC_ADV_msg.capabilities
+	desc_sqn_no = DESC_ADV_msg.desc_sqn_no
+	ogm_min_sqn_no = DESC_ADV_msg.ogm_min_sqn_no
+	ogm_range = DESC_ADV_msg.ogm_range
+	transmission_interval = DESC_ADV_msg.trans_interval
+	reserved = DESC_ADV_msg.reserved
+	extension_length = DESC_ADV_msg.ext_len
+	extension_frames = DESC_ADV_msg.ext_frm #as bytes
+
+	
+	desc_adv_msg_bytes = struct.pack("!H 32s 20s H H H H H H H H", transmitterIID4x, name, pkid, code_version, capabilities, desc_sqn_no, 
+																	ogm_min_sqn_no, ogm_range, transmission_interval, reserved, extension_length) + extension_frames
+
+	return desc_adv_msg_bytes
 
 def dissect_DESC_ADV_msg(recvd_DESC_ADV_msg):
-	pass
+	recvd_desc_adv_msg = struct.unpack("!H 32s 20s H H H H H H H H", recvd_DESC_ADV_msg[:70]) 
+	extension_frames = recvd_DESC_ADV_msg[70:]
+
+	transmitterIID4x = recvd_desc_adv_msg[0]
+	name = recvd_desc_adv_msg[1]
+	pkid = recvd_desc_adv_msg[2]
+	code_version = recvd_desc_adv_msg[3]
+	capabilities = recvd_desc_adv_msg[4]
+	desc_sqn_no = recvd_desc_adv_msg[5]
+	ogm_min_sqn_no = recvd_desc_adv_msg[6]
+	ogm_range = recvd_desc_adv_msg[7]
+	transmission_interval = recvd_desc_adv_msg[8]
+	reserved = recvd_desc_adv_msg[9]
+	extension_length = recvd_desc_adv_msg[10]
+
+	desc_adv_msg = frames.DESC_ADV_msg(transmitterIID4x, name, pkid, code_version, capabilities, desc_sqn_no, 
+										ogm_min_sqn_no, ogm_range, transmission_interval, reserved, extension_length, extension_frames)
+
+	return desc_adv_msg
 
 def DESC_ADV_to_bytes(DESC_ADV):
-	pass
+	DESC_ADV = set_frame_header(DESC_ADV)
+	frame_header = is_short_header(DESC_ADV.frm_header)
+
+	desc_adv_msg_list = b''
+	for i in DESC_ADV.desc_msgs:
+		desc_adv_msg_list = desc_adv_msg_list + DESC_ADV_msg_to_bytes(i)
+
+	desc_adv_bytes = frame_header + desc_adv_msg_list
+
+	return desc_adv_bytes
 
 def dissect_DESC_ADV(recvd_DESC_ADV):
-	pass
+	if recvd_DESC_ADV[0] >= 128:
+		frame_header = dissect_short_frame_header(recvd_DESC_ADV[:2]) #since short header size is 2 bytes
+		desc_adv_msg_list_raw = recvd_DESC_ADV[2:] #received desc_adv_msgs are from 2 bytes onwards
+
+	else:
+		frame_header = dissect_long_frame_header(recvd_DESC_ADV[:4]) #since short header size is 4 bytes
+		desc_adv_msg_list_raw = recvd_DESC_ADV[4:] #received desc_adv_msgs are from 4 bytes onwards
+
+	desc_adv_msg_list = []
+
+	ctr = 0
+	while ctr != frame_header.frm_len:
+		extension_length = desc_adv_msg_list_raw[(ctr + 68):(ctr + 70)]
+		if len(extension_length) == 0:
+			break
+		
+		extension_length = struct.unpack("!H", extension_length)
+		extension_length = extension_length[0]
+
+		x = dissect_DESC_ADV_msg(desc_adv_msg_list_raw[ctr:ctr + 70 + extension_length])
+		desc_adv_msg_list.append(x)
+
+		ctr = ctr + 70 + extension_length
+
+	desc_adv = frames.DESC_ADV(frame_header, desc_adv_msg_list)
+
+	return desc_adv
+	
 
 def HASH_REQ_msg_to_bytes(HASH_REQ_msg):
 	destination_local_id = HASH_REQ_msg.dest_local_id
