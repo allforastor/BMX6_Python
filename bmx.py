@@ -246,92 +246,67 @@ def dissect_packet(recvd_packet):
 
 
 def short_frame_header_to_bytes(header):
-	#the two if statement here merges short_frame, relevant_Frame and frame_type into 1 byte of data
-
-	
-	#short_frm is in the 8th bit position that's why +128
 	header.short_frm = 1
-	short_and_frmtype = header.frm_type + 128
 
-	
-	#relevant _frm is in the 7th bit position that's why +64
-	if header.relevant_frm == 1:
-		short_and_relevant_and_frmtype = short_and_frmtype + 64
-	else:
-		short_and_relevant_and_frmtype = short_and_frmtype
+	short_frame = header.short_frm
+	relevant_frame = header.relevant_frm
+	frame_type = header.frm_type
 
-	#print(short_and_relevant_and_frmtype)
-	frame_header = struct.pack("!BB", short_and_relevant_and_frmtype, header.frm_len)
+	#using bitshifting to store short frame(1 bit), relevant frame(1 bit) and frame type(6 bits) into 1 byte(8 bits)
+	shortFrm_relevantFrm_frmType = short_frame << 7 | relevant_frame << 6 | frame_type
+
+	frame_header = struct.pack("!BB", shortFrm_relevantFrm_frmType, header.frm_len)
 
 	return frame_header
+
 
 def dissect_short_frame_header(recvd_header):
 	data = struct.unpack("!BB", recvd_header)
 
-	#since short_frame, relevant_frame and frametype is merged into 1 byte, 
-	#we will extract first the short_frame which is in the 8th bit position
-	#and next will be the relevant_frame which is in the 7th bit position
-
-	short_and_relevant_and_frametype = data[0]
+	shortFrm_relevantFrm_frmType = data[0]
 	frame_len = data[1]
 
+	# unpacking short frame, relevant frame and frame type
+	short_frame = (shortFrm_relevantFrm_frmType >> 7) & 1 		# & 1 since max value for short frame is 1(1 bit)
+	relevant_frame = (shortFrm_relevantFrm_frmType >> 6) & 1 	# & 1 since max value for relevant frame is 1(1 bit)
+	frame_type = shortFrm_relevantFrm_frmType & 63 				# & 63 since max value for frame type is 63(6 bits)
 
-	short_frame = 1
-	relevant_and_frametype = short_and_relevant_and_frametype - 128
-
-
-	#check if the relevant_frame(7th bit) is 1 or 0 then extract it, sample 1 1 0 0 0 1 0 1
-	#                                                                         ^
-	if relevant_and_frametype >=64:
-		relevant_frame = 1
-		frametype = relevant_and_frametype - 64
-
-	else:
-		relevant_frame = 0
-		frametype = relevant_and_frametype
-
-	frame_header = frames.short_header(short_frame, relevant_frame, frametype, frame_len)
+	frame_header = frames.short_header(short_frame, relevant_frame, frame_type, frame_len)
 
 	return frame_header
-	
 
 def long_frame_header_to_bytes(header):
 	header.short_frm = 0
-	# since this is a long frame header, header.short_frm is 0, therefor we will not add 128 to the 
-	# 1 byte length of short_frm, relevant_frame and frm_len combined
-	short_and_frmtype = header.frm_type 
 
-	if header.relevant_frm == 1:
-		short_and_relevant_and_frmtype = short_and_frmtype + 64
-	else:
-		short_and_relevant_and_frmtype = short_and_frmtype
+	short_frame = header.short_frm
+	relevant_frame = header.relevant_frm
+	frame_type = header.frm_type
 
-	frame_header = struct.pack("!BBH", short_and_relevant_and_frmtype, header.reserved, header.frm_len)
+	#using bitshifting to store short frame(1 bit), relevant frame(1 bit) and frame type(6 bits) into 1 byte(8 bits)
+	shortFrm_relevantFrm_frmType = short_frame << 7 | relevant_frame << 6 | frame_type
+
+	frame_header = struct.pack("!BBH", shortFrm_relevantFrm_frmType, header.reserved, header.frm_len)
 
 	return frame_header
 
 def dissect_long_frame_header(recvd_header):
+	# this returns a tuple of (shortFrm_relevantFrm_frmType, reserved, frame_length)
 	data = struct.unpack("!BBH", recvd_header)
-	short_frame = 0
-	short_and_relevant_and_frametype  = data[0]
-	# since short frame is 0, we do not need to minus 128 to that merged short_frm,
-	# relevant_Frm and frm_type that's why it will just be relevant_and_frametype
-	relevant_and_frametype = short_and_relevant_and_frametype
-
+	
+	# extract each element 
+	shortFrm_relevantFrm_frmType  = data[0]
 	reserved = data[1]
 	frame_length = data[2]
 
-	if relevant_and_frametype >= 64:
-		relevant_frame = 1
-		frametype = relevant_and_frametype - 64
+	# unpacking short frame, relevant frame and frame type
+	short_frame = (shortFrm_relevantFrm_frmType >> 7) & 1 		# & 1 since max value for short frame is 1(1 bit)
+	relevant_frame = (shortFrm_relevantFrm_frmType >> 6) & 1 	# & 1 since max value for relevant frame is 1(1 bit)
+	frame_type = shortFrm_relevantFrm_frmType & 63 				# & 63 since max value for frame type is 63(6 bits)
 
-	else:
-		relevant_frame = 0
-		frametype = relevant_and_frametype
-
-	frame_header = frames.long_header(short_frame, relevant_frame, frametype, reserved, frame_length)
+	frame_header = frames.long_header(short_frame, relevant_frame, frame_type, reserved, frame_length)
 
 	return frame_header
+
 
 def set_frame_header(frame):
 	short_frame_header_length = 2
@@ -392,7 +367,7 @@ def set_frame_header(frame):
 		if len(frame.dev_msgs)*26 + device_sequence_no_length + short_frame_header_length > 255:
 			short_frame = 0
 			frame_length = long_frame_header_length + device_sequence_no_length + 26*(len(frame.dev_msgs))
-			created_frame = frames.DEV_ADV(frames.long_header(short_frame, relevant_frame, reserved, frame_length), frame.dev_sqn_no, frame.dev_msgs)
+			created_frame = frames.DEV_ADV(frames.long_header(short_frame, relevant_frame, frame_type, reserved, frame_length), frame.dev_sqn_no, frame.dev_msgs)
 	
 		else:
 			short_frame = 1
@@ -469,7 +444,8 @@ def set_frame_header(frame):
 		if len(frame.ogm_adv_msgs)*4 + short_frame_header_length + aggregation_sequence_number_length + ogm_destination_array_size_length + ogm_destination_array_length > 255:
 			short_frame = 0
 			frame_length = long_frame_header_length + aggregation_sequence_number_length + ogm_destination_array_size_length + ogm_destination_array_length + 4*(len(frame.ogm_adv_msgs))
-			created_frame = frames.OGM_ADV(frames.long_header(short_frame, relevant_frame, frame_type, reserved, frame_length), frame.ogm_adv_msgs)
+			created_frame = frames.OGM_ADV(frames.long_header(short_frame, relevant_frame, frame_type, reserved, frame_length), frame.agg_sqn_no, 
+											frame.ogm_dest_arr_size, frame.ogm_dest_arr, frame.ogm_adv_msgs)
 		else:
 			short_frame = 1
 			frame_length = short_frame_header_length + aggregation_sequence_number_length + ogm_destination_array_size_length + ogm_destination_array_length + 4*(len(frame.ogm_adv_msgs))
@@ -521,8 +497,13 @@ def RP_ADV_to_bytes(RP_ADV):
 	return rp_adv_bytes
 
 def dissect_RP_ADV(recvd_RP_ADV):
-	
-	if recvd_RP_ADV[0] >= 128:
+	#checks the first bit(short_frame) of the recvd RP_ADV  
+	first_byte = recvd_RP_ADV[:1]
+	first_byte = first_byte[0]
+	short_frame = (first_byte >> 7) & 1
+
+	#checks if short frame is 1 or 0
+	if short_frame == 1:
 		frame_header = dissect_short_frame_header(recvd_RP_ADV[:2])
 		rp_adv_msg_list_raw = recvd_RP_ADV[2:]
 	else:
@@ -622,9 +603,13 @@ def LINK_ADV_to_bytes(LINK_ADV):
 	return link_adv_bytes
 
 def dissect_LINK_ADV(recvd_LINK_ADV):
-	#frame_header = dissect_frame_header(recvd_LINK_ADV[:2]) #since header size is 2 bytes
+	#checks the first bit(short_frame) of the recvd LINK_ADV  
+	first_byte = recvd_LINK_ADV[:1]
+	first_byte = first_byte[0]
+	short_frame = (first_byte >> 7) & 1
 
-	if recvd_LINK_ADV[0] >= 128:
+	#checks if short frame is 1 or 0
+	if short_frame == 1:
 		frame_header = dissect_short_frame_header(recvd_LINK_ADV[:2]) #since short header size is 2 bytes
 		#the next 2 bytes is the device sequence number reference
 		#then unpack the device sequence number reference
@@ -715,7 +700,13 @@ def DEV_ADV_to_bytes(DEV_ADV):
 	return dev_adv_bytes
 
 def dissect_DEV_ADV(recvd_DEV_ADV):
-	if recvd_DEV_ADV[0] >= 128:
+	#checks the first bit(short_frame) of the recvd DEV_ADV  
+	first_byte = recvd_DEV_ADV[:1]
+	first_byte = first_byte[0]
+	short_frame = (first_byte >> 7) & 1
+
+	#checks if short frame is 1 or 0
+	if short_frame == 1:
 		frame_header = dissect_short_frame_header(recvd_DEV_ADV[:2]) #since short header size is 2 bytes
 		#the next 2 bytes is the device sequence number 
 		#then unpack the device sequence number 
@@ -776,7 +767,13 @@ def DESC_REQ_to_bytes(DESC_REQ):
 	return desc_req_bytes
 
 def dissect_DESC_REQ(recvd_DESC_REQ):
-	if recvd_DESC_REQ[0] >= 128:
+	#checks the first bit(short_frame) of the recvd DESC_REQ  
+	first_byte = recvd_DESC_REQ[:1]
+	first_byte = first_byte[0]
+	short_frame = (first_byte >> 7) & 1
+
+	#checks if short frame is 1 or 0
+	if short_frame == 1:
 		frame_header = dissect_short_frame_header(recvd_DESC_REQ[:2]) #since short header size is 2 bytes
 		desc_req_msg_list_raw = recvd_DESC_REQ[2:] #received desc_req_msgs are from 2 bytes onwards
 
@@ -851,7 +848,13 @@ def DESC_ADV_to_bytes(DESC_ADV):
 	return desc_adv_bytes
 
 def dissect_DESC_ADV(recvd_DESC_ADV):
-	if recvd_DESC_ADV[0] >= 128:
+	#checks the first bit(short_frame) of the recvd DESC_ADV  
+	first_byte = recvd_DESC_ADV[:1]
+	first_byte = first_byte[0]
+	short_frame = (first_byte >> 7) & 1
+
+	#checks if short frame is 1 or 0
+	if short_frame == 1:
 		frame_header = dissect_short_frame_header(recvd_DESC_ADV[:2]) #since short header size is 2 bytes
 		desc_adv_msg_list_raw = recvd_DESC_ADV[2:] #received desc_adv_msgs are from 2 bytes onwards
 
@@ -912,7 +915,13 @@ def HASH_REQ_to_bytes(HASH_REQ):
 	return hash_req_bytes
 
 def dissect_HASH_REQ(recvd_HASH_REQ):
-	if recvd_HASH_REQ[0] >= 128:
+	#checks the first bit(short_frame) of the recvd HASH_REQ  
+	first_byte = recvd_HASH_REQ[:1]
+	first_byte = first_byte[0]
+	short_frame = (first_byte >> 7) & 1
+
+	#checks if short frame is 1 or 0
+	if short_frame == 1:
 		frame_header = dissect_short_frame_header(recvd_HASH_REQ[:2]) #since short header size is 2 bytes
 		hash_req_msg_list_raw = recvd_HASH_REQ[2:] #received hash_req_msgs are from 2 bytes onwards
 
@@ -947,7 +956,7 @@ def dissect_HASH_ADV(recvd_HASH_ADV):
 	frame_header = dissect_short_frame_header(recvd_HASH_ADV[:2])
 	transmitterIID4x_and_descriptionHash = recvd_HASH_ADV[2:]
 
-	transmitterIID4x_and_descriptionHash = struct.unpack("!H20s", transmitterIID4x_and_descriptionHash)
+	transmitterIID4x_and_descriptionHash = struct.unpack("!H 20s", transmitterIID4x_and_descriptionHash)
 	
 	transmitterIID4x = transmitterIID4x_and_descriptionHash[0]
 	description_hash = transmitterIID4x_and_descriptionHash[1]
@@ -988,7 +997,13 @@ def OGM_ACK_to_bytes(OGM_ACK):
 
 
 def dissect_OGM_ACK(recvd_OGM_ACK):
-	if recvd_OGM_ACK[0] >= 128:
+	#checks the first bit(short_frame) of the recvd OGM_ACK  
+	first_byte = recvd_OGM_ACK[:1]
+	first_byte = first_byte[0]
+	short_frame = (first_byte >> 7) & 1
+
+	#checks if short frame is 1 or 0
+	if short_frame == 1:
 		frame_header = dissect_short_frame_header(recvd_OGM_ACK[:2]) #since short header size is 2 bytes
 		ogm_ack_msg_list_raw = recvd_OGM_ACK[2:] #received ogm_ack_msgs are from 2 bytes onwards
 
@@ -1014,40 +1029,30 @@ def OGM_ADV_msg_to_bytes(OGM_ADV_msg):
 	# since mantisse is 5 bits, exponent is 5 bits and iid_offset is 6 bits, combine
 	# them into 2 bytes of data
 
-	# first is to convert to binary without 'ob'
-	mantisse_bin = format(OGM_ADV_msg.metric_mantisse, "05b") # we use "05b" to drop the ob infront and fill the extra bits in left with zero up to 5 bits, sample: ob101 becomes 00101
-	exponent_bin = format(OGM_ADV_msg.metric_exponent, "05b")
-	iid_offset_bin = format(OGM_ADV_msg.iid_offset, "06b")
+	mantisse = OGM_ADV_msg.metric_mantisse
+	exponent = OGM_ADV_msg.metric_exponent
+	iid_offset = OGM_ADV_msg.iid_offset
 
-	# next is to concatenate the binary of the three
-	mantisse_exponent_iidOffset_bin = mantisse_bin + exponent_bin + iid_offset_bin
-
-	# then convert the concatenated binary into int
-	mantisse_exponent_iidOffset_int = int(mantisse_exponent_iidOffset_bin, 2)
+	#using bitshifting to store mantisse(5 bits), exponent(5 bits) and iid offset(6 btis) into 2 bytes(16 bits)
+	mantisse_exponent_iidOffset = mantisse << 11 | exponent << 6 | iid_offset
 	
-	# get the ogm sqn number
 	ogm_sequence_number = OGM_ADV_msg.ogm_sqn_no
 
-	ogm_adv_msg_bytes = struct.pack("!HH", mantisse_exponent_iidOffset_int, ogm_sequence_number)
+	ogm_adv_msg_bytes = struct.pack("!HH", mantisse_exponent_iidOffset, ogm_sequence_number)
 	
 	return ogm_adv_msg_bytes
-
 
 def dissect_OGM_ADV_msg(recvd_OGM_ADV_msg):
 	# unpack received data
 	data = struct.unpack("!HH", recvd_OGM_ADV_msg)
 	
 	# extract from tuple
-	mantisse_exponent_iidOffset_int = data[0]
+	mantisse_exponent_iidOffset = data[0]
 	ogm_sequence_number = data[1]
 
-	# convert mantisse_exponent_iidOffset_int into binary without the "ob"
-	mantisse_exponent_iidOffset_bin = format(mantisse_exponent_iidOffset_int, "016b") # use 016b since we know that the lengthh of it is 16 bits, fill extra bits in left up to 16 bits 
-
-	# extract the binary mantisse, exponent and iid_offset then convert each to int
-	mantisse = int(mantisse_exponent_iidOffset_bin[0:5], 2) #first 5 bits
-	exponent = int(mantisse_exponent_iidOffset_bin[5:10], 2) # next 5 bits
-	iid_offset = int(mantisse_exponent_iidOffset_bin[10:16], 2) # the last 6 bits
+	mantisse = (mantisse_exponent_iidOffset >> 11) & 31
+	exponent = (mantisse_exponent_iidOffset >> 6) & 31
+	iid_offset = mantisse_exponent_iidOffset & 63
 
 	ogm_adv_msg = frames.OGM_ADV_msg(mantisse, exponent, iid_offset, ogm_sequence_number)
 
@@ -1073,8 +1078,13 @@ def OGM_ADV_to_bytes(OGM_ADV):
 	return ogm_adv_bytes
 
 def dissect_OGM_ADV(recvd_OGM_ADV):
-	
-	if recvd_OGM_ADV[0] >= 128:
+	#checks the first bit(short_frame) of the recvd OGM_ADV  
+	first_byte = recvd_OGM_ADV[:1]
+	first_byte = first_byte[0]
+	short_frame = (first_byte >> 7) & 1
+
+	#checks if short frame is 1 or 0
+	if short_frame == 1:
 		frame_header = dissect_short_frame_header(recvd_OGM_ADV[:2]) #since short header size is 2 bytes
 
 		aggregationSequenceNumber_ogmDestinationArraySize = recvd_OGM_ADV[2:4]
@@ -1090,7 +1100,7 @@ def dissect_OGM_ADV(recvd_OGM_ADV):
 
 
 	else:
-		frame_header = dissect_short_frame_header(recvd_OGM_ADV[:4]) #since long header size is 4 bytes
+		frame_header = dissect_long_frame_header(recvd_OGM_ADV[:4]) #since long header size is 4 bytes
 		aggregationSequenceNumber_ogmDestinationArraySize = recvd_OGM_ADV[4:6]
 		aggregationSequenceNumber_ogmDestinationArraySize = struct.unpack("!BB", aggregationSequenceNumber_ogmDestinationArraySize)
 		
