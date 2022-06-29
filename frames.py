@@ -21,6 +21,21 @@ class header:
     frm_len: int = 0
 
 @dataclass
+class short_header:
+    short_frm: int
+    relevant_frm: int
+    frm_type: int
+    frm_len: int
+    
+@dataclass
+class long_header:
+    short_frm: int
+    relevant_frm: int
+    frm_type: int
+    reserved: int
+    frm_len: int
+    
+@dataclass
 class HELLO_ADV:
     frm_header: header
     HELLO_sqn_no: int                   # sqn used for link metric calculation
