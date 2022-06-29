@@ -113,19 +113,6 @@ class local_node:
         # call lndev assign best lndev (only best rx will be altered)
         pass
 
-
-    #def set_iid_offset_for_ogm_msg(self, OGM_ADV, neighbor):   # initialize iid offset for msgs # migrate to somewhere # works for 1 frame only # modified
-    #    for msg in OGM_ADV.ogm_adv_msgs:
-    #        if msg.iid_offset is None:  # ogm msg is in the originator, initialization # maybe change to < 0
-    #            msg.iid_offset = 0
-    #            iid = msg.iid_offset
-    #        else:
-    #            neighiid = msg.iid_offset   # ogm msg contains iid of the originator
-    #            iid = neighbor.get_myIID4x_by_neighIID4x(neighiid)
-    #            msg.iid_offset = iid
-    #
-    #    self.orig_routes = iid  # store iid value to local node
-
 @dataclass
 class link_node_key:
     local_id: int = -1                                                          # local ID of the other node (LOCAL_ID_T)
