@@ -93,6 +93,7 @@ def send(group, port, ttl, msg):
 	s.sendto(msg + b'\0', (addrinfo[4][0], port))
 #	time.sleep(1)
 
+
 def is_max(sqn_no, max):
 	if sqn_no == max:
 		sqn_no = 0
