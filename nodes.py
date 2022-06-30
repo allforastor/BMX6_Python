@@ -267,6 +267,19 @@ class router_node:
             self.ogm_sqn_last = frame.agg_sqn_no
 
 @dataclass
+class description:  
+    name: str = None                    # hostname of node
+    pkid: str = None                    # random part of global ID
+    code_version: int = None            # replaced with git revision
+    capabilites: int = 0                # Supposed to be used to indicate future capabilities of the BMX6 process.
+    desc_sqn_no: int = -1               # starts at random
+    ogm_min_sqn_no: int = 0             # default 0
+    ogm_range: int = 65535              # default 0 to 2^16
+    trans_interval: int = 500           # time interval for every packet sent in ms, default is 0.5s
+    ext_len: int = None                 # not sure if this will be used
+    ext_frm: int = None                 # not sure if this will be used
+            
+@dataclass
 class description_hash:
     u8: int                             # array[HASH_SHA1_LEN] - [20]
     u32: int 
@@ -437,75 +450,59 @@ class host_metricalgo:
     #late_penalty: int  # uint8_t    # penalize non-first received ogm advs  # excluded for now
 
 @dataclass
-class orig_node:    
-    global_id: str             # GLOBAL_ID_T (32 len) + PKID_T # default None
+class orig_node:
+    global_id: str = None                           # GLOBAL_ID_T (32 len) + PKID_T # default None
 
-    dhash_n: list               # dhash_node   # default dhash_node
-    desc: int  # **description (MISSING???) # default = None # DESC_ADV
-    desc_tlv_hash_tree: int     # **avl_tree
+    dhash_n: dhash_node = None                      # dhash_node
+    desc: description = None                        # **description (MISSING???) # default = None # DESC_ADV
+    #desc_tlv_hash_tree: int                        # **avl_tree   # removed
 
-    updated_timestamp: time     # last time this orig node's description was updated in s # dependedent on last received DESC_ADV
+    updated_timestamp: time = 0                     # TIME_T   # last time this orig node's description was updated # default # dependedent on last received DESC_ADV
 
-    desc_sqn: int  # DESC_SQN_T (16 bits) # DESC_ADV
+    desc_sqn: int = -1                              # DESC_SQN_T (16 bits) # DESC_ADV
 
-    ogm_sqn_range_min: int      # OGM_SQN_T (16 bits) # default 0  # DESC_ADV
-    ogm_sqn_range_size: int     # OGM_SQN_T (16 bits)  # default 65535    # DESC_ADV
+    ogm_sqn_range_min: int = 0                      # OGM_SQN_T (16 bits) # default 0  # DESC_ADV
+    ogm_sqn_range_size: int = 65535                 # OGM_SQN_T (16 bits)  # default 65535    # DESC_ADV
 
-    primary_ip: ipaddress.ip_address    # ip of link (IPX_T), default = ipaddress.ip_address('0.0.0.0')
-    primary_ip_str: str         # array[IPX_STR_LEN]
-    blocked: int                # indicates whether this node is blocked
-    added: int
+    primary_ip: ipaddress.ip_address = ipaddress.ip_address('0.0.0.0')         # ip of link (IPX_T)
+    #primary_ip_str: str                            # array[IPX_STR_LEN], removed
+    #blocked: int                                   # indicates whether this node is blocked, assume no functionality of blocking nodes
+    #added: int
 
-    path_metricalgo: host_metricalgo  # **host_metricalgo (HAROLD) # modified
+    path_metricalgo: host_metricalgo = None         # **host_metricalgo (HAROLD)
 
-    ogm_sqn_max_received: int  # OGM_SQN_T (16 bits)
+    ogm_sqn_max_received: int = -1                  # OGM_SQN_T (16 bits)
 
-    ogm_sqn_next: int  # OGM_SQN_T (16 bits)
-    ogm_metric_next: int  # UMETRIC_T
+    ogm_sqn_next: int = -1                          # OGM_SQN_T (16 bits)
+    ogm_metric_next: int = -1                       # UMETRIC_T
 
-    ogm_sqn_send: int  # OGM_SQN_T (16 bits)
+    ogm_sqn_send: int = -1                          # OGM_SQN_T (16 bits)
 
-    metric_sqn_max_arr: int  # UMETRIC_T - *remove*
+    #metric_sqn_max_arr: int                        # UMETRIC_T , removed
 
-    rt_tree: int  # **avl_tree
+    #rt_tree: int                                   # removed
 
-    best_rt_local: router_node
-    curr_rt_local: router_node
-    curr_rt_linkdev: link_dev_node
-    
-    def global_id_gen(self):    
-        name = socket.gethostname()
-        randomm = randint(75557863725914323419136, 1208925819614629174706175)  # 1 w/ 19 0's in decimal, 20 F's
-        x = hex(randomm)  # str output
-        formatt = x[2:]
-        glid = name + "." + formatt
-        self.global_id = glid
+    best_rt_local: router_node = None
+    curr_rt_local: router_node = None
+    curr_rt_linkdev: link_dev_node = None
 
-        return glid
-        
-    def update_self(self, frame):     # create global id (160bits)
-        #changed = 0        # use for tracking change in self.desc
-        if type(frame) == frames.DESC_ADV:
-            self.global_id = frame.desc_msgs.name + frame.desc_msgs.pkid  # 32bytes + 20 bytes
-            self.primary_ip = socket.gethostbyname(frame.name)
+    def update_self(self, frame):               # modified
+        if type(frame) == frames.DESC_ADV:      # receiving new description
+            self.updated_timestamp = (time.perf_counter() - start_time) * 1000  # bmx6_time
             self.desc_sqn = frame.desc_sqn_no
-            #prev_val = self.desc       # check whether desc is changed. dont know how desc is represented
-            #if prev_val !=
-#
-        if type(frame) == frames.OGM_ADV:
+            self.primary_ip = socket.gethostbyname(frame.name)
+
+        elif type(frame) == frames.OGM_ADV:
             self.ogm_sqn_max_received = frame.agg_sqn_no
             self.ogm_sqn_next = frame.agg_sqn_no + 1
             self.ogm_sqn_send = frame.agg_sqn_no
 
-    #def last_desc_update(self):    # return time in seconds since the last description update
-    #    pass
+    def update_path_metrics(self):              # update seen from line 966, metrics.c
+        pass
 
-    #def update_path_metrics(self):      # update seen from line 966, metrics.c
-    #    pass
-
-    def ack_ogm_frame(self, frame):  # function to ack ogm frames by creating ogm ack msgs
-        if type(frame) == frames.OGM_ADV:  # check if ogm adv is received
-            ack_msg1 = frames.OGM_ACK_msg  # assign 2 ack msgs with sqn number of ogm frame
+    def ack_ogm_frame(self, frame):             # function to ack ogm frames by creating ogm ack msgs
+        if type(frame) == frames.OGM_ADV:       # check if ogm adv is received
+            ack_msg1 = frames.OGM_ACK_msg       # assign 2 ack msgs with sqn number of ogm frame
             ack_msg2 = frames.OGM_ACK_msg
             ack_msg1.agg_sqn_no = frame.agg_sqn_no
             ack_msg2.agg_sqn_no = frame.agg_sqn_no
@@ -514,6 +511,7 @@ class orig_node:
             self.ogm_sqn_send = frame.agg_sqn_no
 
         return ack_msg1, ack_msg2
+
 
 
 # avl_tree blacklisted_tree
