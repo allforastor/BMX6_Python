@@ -94,9 +94,10 @@ def send(group, port, ttl, msg):
 #	time.sleep(1)
 
 
-def is_max(sqn_no, max):
-	if sqn_no == max:
+def is_max(sqn_no, sqn_max):
+	if sqn_no == sqn_max:
 		sqn_no = 0
+
 
 #creating packet together with the packetheader
 def create_packet(packetheader, frameslist):
