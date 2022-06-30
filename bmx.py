@@ -40,19 +40,19 @@ frame_type_OGM_ACK = 23
 
 @dataclass
 class packet_header:
-    bmx_version: int
-    reserved: int
-    pkt_len: int
-    transmitterIID: int
-    link_adv_sqn: int
-    pkt_sqn: int
-    local_id: int
-    dev_idx: int
+	bmx_version: int
+	reserved: int
+	pkt_len: int
+	transmitterIID: int
+	link_adv_sqn: int
+	pkt_sqn: int
+	local_id: int
+	dev_idx: int
 
 @dataclass
 class packet:
-    header: packet_header
-    frames: list
+	header: packet_header
+	frames: list
 
 #receive packet
 def listen(group, port):
@@ -93,7 +93,9 @@ def send(group, port, ttl, msg):
 	s.sendto(msg + b'\0', (addrinfo[4][0], port))
 #	time.sleep(1)
 
-
+def is_max(sqn_no, max):
+	if sqn_no == max:
+		sqn_no = 0
 
 #creating packet together with the packetheader
 def create_packet(packetheader, frameslist):
@@ -1132,43 +1134,43 @@ def dissect_OGM_ADV(recvd_OGM_ADV):
 '''
 #adding request frames to frames 2 send list alongside with the unsolicited adv frames
 def send_REQ_frame(REQ_frame, frames2send):
-    #if we wish to send LINK_REQ, it will append LINK_REQ and LINK_ADV to frames2send list 
-    #same with other REQ frames
-    if REQ_frame == frames.LINK_REQ: 
-        frames2send.extend([REQ_frame, frames.LINK_ADV])
+	#if we wish to send LINK_REQ, it will append LINK_REQ and LINK_ADV to frames2send list 
+	#same with other REQ frames
+	if REQ_frame == frames.LINK_REQ: 
+		frames2send.extend([REQ_frame, frames.LINK_ADV])
 
-    if REQ_frame == frames.HASH_REQ:
-        frames2send.extend([REQ_frame, frames.HASH_ADV])
+	if REQ_frame == frames.HASH_REQ:
+		frames2send.extend([REQ_frame, frames.HASH_ADV])
 
-    if REQ_frame == frames.DESC_REQ:
-        frames2send.extend([REQ_frame, frames.DESC_ADV])
+	if REQ_frame == frames.DESC_REQ:
+		frames2send.extend([REQ_frame, frames.DESC_ADV])
 
-    if REQ_frame == frames.DEV_REQ:
-        frames2send.extend([REQ_frame, frames.DEV_ADV])
+	if REQ_frame == frames.DEV_REQ:
+		frames2send.extend([REQ_frame, frames.DEV_ADV])
 
 #checks if the received packet has req frames, then add appropriate adv frames
 #to the frames to send list
 def send_ADV_frames(recvd_frames, frames2send):
-    for i in recvd_frames: ##iterate through the list of frames received to 
-                            # check if there is any REQ frame. add appropriate ADV frame to frames list 
-                            # if there is any REQ frame
-        #if there is DESC_REQ in received frame list, it will append DESC_ADV to frames2send list
-        #same with others
-        if i == frames.DESC_REQ:
-            frames2send.append(frames.DESC_ADV)
+	for i in recvd_frames: ##iterate through the list of frames received to 
+							# check if there is any REQ frame. add appropriate ADV frame to frames list 
+							# if there is any REQ frame
+		#if there is DESC_REQ in received frame list, it will append DESC_ADV to frames2send list
+		#same with others
+		if i == frames.DESC_REQ:
+			frames2send.append(frames.DESC_ADV)
 
-        if i == frames.LINK_REQ:
-            frames2send.append(frames.LINK_ADV)
+		if i == frames.LINK_REQ:
+			frames2send.append(frames.LINK_ADV)
 
-        if i == frames.HASH_REQ:
-            frames2send.append(frames.HASH_ADV)
+		if i == frames.HASH_REQ:
+			frames2send.append(frames.HASH_ADV)
 
-        if i == frames.DEV_REQ:
-            frames2send.append(frames.DEV_ADV)
+		if i == frames.DEV_REQ:
+			frames2send.append(frames.DEV_ADV)
  '''       
 
-        
-        
+		
+		
 #just test port values
 port = 8080
 group = 'ff02::2'
@@ -1179,37 +1181,40 @@ ttl = 1
 
 transient_state = True
 knowsAllNodes = False
-pktSqn = random.randint(0,4294967295//2) #since packet sequence start at random 
+pktSqnMax = 4294967295
+pktSqn = random.randint(0,pktSqnMax//2) #since packet sequence start at random 
 
 while True:
-    frames2send = [frames.HELLO_ADV, frames.RP_ADV] #periodic messages to be  
-                                                    #sent together with the packets
-    
-    threading.Thread(target = listen(group, port)).start() #receiving packets
+	frames2send = [frames.HELLO_ADV, frames.RP_ADV] #periodic messages to be  
+													#sent together with the packets
+	
+	threading.Thread(target = listen(group, port)).start() #receiving packets
 
-    #if in transient state
-    while transient_state:
-        recvd = listen(group, port) #stores the received packet to recvd variable
+	is_max(pktSqn, pktSqnMax) # checks if the current packet sequence reached the maximum packet sequence
 
-        #if it knows every nodes, enter steady state
-        if knowsAllNodes:
-            transient_state = False
+	#if in transient state
+	while transient_state:
+		recvd = listen(group, port) #stores the received packet to recvd variable
 
-        #else append non periodic frames
-        else:
-            recvd_frames = recvd.frames #store packet frames list to recevd_frames
-            
-            #send_ADV_frames(recvd_frames, frames2send) 
+		#if it knows every nodes, enter steady state
+		if knowsAllNodes:
+			transient_state = False
 
-            knowsAllNodes = True #then knows every node
+		#else append non periodic frames
+		else:
+			recvd_frames = recvd.frames #store packet frames list to recevd_frames
+			
+			#send_ADV_frames(recvd_frames, frames2send) 
 
-    pktSqn += 1 #increment sqn number every sending of packets
+			knowsAllNodes = True #then knows every node
 
-    #creating packets
-    msg = packet(packet_header(3,4,5,6,7,pktSqn, 9, 0), frames2send) #some of the integers are test values
-    print(msg)
-    time.sleep(0.5) #Hello and Rp sent every 0.5s
-    print(datetime.now().time()) #show current time
+	pktSqn += 1 #increment sqn number every sending of packets
 
-    send(group, port, ttl, msg) #sending packets
+	#creating packets
+	msg = packet(packet_header(3,4,5,6,7,pktSqn, 9, 0), frames2send) #some of the integers are test values
+	print(msg)
+	time.sleep(0.5) #Hello and Rp sent every 0.5s
+	print(datetime.now().time()) #show current time
+
+	send(group, port, ttl, msg) #sending packets
 
