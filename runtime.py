@@ -16,22 +16,24 @@ import nodes
 import frames
 # import miscellaneous
 
-# my_iid_repos = nodes.iid_repos()
+my_iid_repos = nodes.iid_repos()
 
-# TESTING
+## TEST VALUES
 fhead = frames.header(0,0,0,0)
 ln_msg = frames.LINK_ADV_msg(1,1,1)
 ln_frame = frames.LINK_ADV(fhead, 1, [ln_msg])
 rp_msg = frames.RP_ADV_msg(127,1)
+rp_msg2 = frames.RP_ADV_msg(7,1)
 rp_frame = frames.RP_ADV(fhead, [rp_msg])
+rp_frame2 = frames.RP_ADV(fhead, [rp_msg2])
 hello_frame = frames.HELLO_ADV(fhead,10)
 head = bmx.packet_header(0,0,0,0,1,0,11111,0)
-head2 = bmx.packet_header(0,0,0,0,1,1,11111,0)
+head2 = bmx.packet_header(0,0,0,0,1,1,11112,1)
 packet = bmx.packet(head, [ln_frame, hello_frame, rp_frame])
-packet2 = bmx.packet(head2, [hello_frame, rp_frame])
+packet2 = bmx.packet(head2, [hello_frame, rp_frame2])
 
 
-# INITIALIZATION
+## INITIALIZATION
 
 local_ids = []                  # list of local_ids
 local_list = []                 # list of local_nodes
@@ -41,7 +43,6 @@ link_list = []                  # list of link_nodes
 link_dev_list = []              # list of link_dev_nodes
 dev_list = []                   # list of devices (includes loopback interface and inactive devices)
 # node_IIDs = []                # list of local_IIDs (can be substituted by however Geom does)
-
 
 def get_interfaces(iflist):
     dev_id = len(iflist)
@@ -126,18 +127,18 @@ def print_interfaces(iflist):
     print()
 
 def local_id_gen(mac_addr):
-    # | lid[3] | lid[2] | lid[1] | lid[0] |
-    # | mac[5] | mac[4] | mac[3] | random |
-    lid = int(mac_addr[15]+mac_addr[16], 16) << 8
-    lid = lid + int(mac_addr[12]+mac_addr[13], 16) << 8
+    # | lid[0] | lid[1] | lid[2] | lid[3] |
+    # | random | mac[3] | mac[4] | mac[5] |
+    lid = random.randint(0,255) << 8
     lid = lid + int(mac_addr[9]+mac_addr[10], 16) << 8
-    lid = lid + random.randint(0,255)
+    lid = lid + int(mac_addr[12]+mac_addr[13], 16) << 8
+    lid = lid + int(mac_addr[15]+mac_addr[16], 16)
 
     return lid
 
 def check_if_exists(object, object_list):
-    i = 0
     if(type(object_list) == list):
+        i = 0
         for x in object_list:
             if(object_list[i] == object):   # if the object is in the list, then it exists
                 return i                    # index is returned
@@ -148,7 +149,6 @@ def check_if_exists(object, object_list):
         else:
             return -1
     return -1                           # object not found 
-
 
 lomac = get_interfaces(dev_list)                # gets the MAC address
 loid = local_id_gen(lomac)                      # generates the local_id of the main node
@@ -164,13 +164,13 @@ print(hex(loid))
 print("local_id =", loid,'\n')
 
 
-# PACKET HANDLING
+## PACKET HANDLING
 
 def packet_received(self, ip6):
-    # INITIALIZATION
+    ## NODE STRUCTURE INITIALIZATION
     active_known = 0
     active_devices = 0
-    get_interfaces(dev_list)                        # get latest device list
+    get_interfaces(dev_list)                    # get latest device list
 
     # check if the packet sender already has a local_node for the sender
     if(check_if_exists(self.header.local_id, local_ids) == -1):         # new local_node
@@ -180,48 +180,41 @@ def packet_received(self, ip6):
         
         # store new info in the global arrays
         local_ids.append(local.local_id)        # store in global local_id list
-        local_list.append(local)                 # store in global local_node list
+        local_list.append(local)                # store in global local_node list
 
     # check if the local_node knows the link
-    print("knows link?", check_if_exists(nodes.link_node_key(self.header.local_id, self.header.dev_idx), main_local.link_tree))
+    print("knows link?", check_if_exists(nodes.link_node_key(self.header.local_id, self.header.dev_idx), link_keys))
     print("comparison:", nodes.link_node_key(self.header.local_id, self.header.dev_idx))
     print("link_keys:", link_keys)
 
-
     if(check_if_exists(nodes.link_node_key(self.header.local_id, self.header.dev_idx), link_keys) == -1):
-        # check if the link exists in the global link_node list
-        if(check_if_exists(nodes.link_node_key(self.header.local_id, self.header.dev_idx), link_keys) >= 0):
-            main_local.link_tree.append(link_list[check_if_exists(nodes.link_node_key(self.header.local_id, self.header.dev_idx), link_keys)])
-        else:                                                           # new link_node
-            # add the new link to the main local_node
-            ln_key = nodes.link_node_key(self.header.local_id, self.header.dev_idx)
-            ln = nodes.link_node(local = local_list[check_if_exists(self.header.local_id, local_ids)], key = ln_key, link_ip = ip6)
-            main_local.link_tree.append(ln)                                                     # add link to the main node
-            local_list[check_if_exists(self.header.local_id, local_ids)].link_tree.append(ln)   # add link to the new node
+        # add the new link to the main local_node
+        ln_key = nodes.link_node_key(self.header.local_id, self.header.dev_idx)
+        ln = nodes.link_node(local = local_list[check_if_exists(self.header.local_id, local_ids)], key = ln_key, link_ip = ip6)
+        main_local.link_tree.append(ln)                                                     # add link to the main node
+        local_list[check_if_exists(self.header.local_id, local_ids)].link_tree.append(ln)   # add link to the new node
 
-            # store new info in the global arrays
-            link_keys.append(ln_key)                # store in global link_node_key list
-            link_list.append(ln)                    # store in global link_node list
-            print(link_keys)
-            print(link_list)
+        # store new info in the global arrays
+        link_keys.append(ln_key)                # store in global link_node_key list
+        link_list.append(ln)                    # store in global link_node list
 
-            # add link_dev_nodes to the new link
-            for dev in dev_list:
-                if((dev.type != 0) and (dev.active == 1)):
-                    lndev = nodes.link_dev_node(key = nodes.link_dev_key(ln, dev))
-                    ln.lndev_list.append(lndev)     # add lndev to the the link's lndev_list
-                    link_dev_list.append(lndev)     # store in global link_dev_node list
+        # add link_dev_nodes to the new link
+        for dev in dev_list:
+            if((dev.type != 0) and (dev.active == 1)):
+                lndev = nodes.link_dev_node(key = nodes.link_dev_key(ln, dev))
+                ln.lndev_list.append(lndev)     # add lndev to the the link's lndev_list
+                link_dev_list.append(lndev)     # store in global link_dev_node list
 
     link_index = check_if_exists(nodes.link_node_key(self.header.local_id, self.header.dev_idx), link_keys)
 
     # check if lndevs are correct
     for lndev in link_list[link_index].lndev_list:
         if(lndev.key.dev.active == 1):
-            active_known =  active_known + 1        # known lndev_active
+            active_known =  active_known + 1    # known lndev_active
     for dev in dev_list:
         if((dev.type != 0) and (dev.active == 1)):
             active_devices = active_devices + 1
-    if(active_known < active_devices):              # if there is a mismatch, then there is new active device
+    if(active_known < active_devices):          # if there is a mismatch, then there is new active device
         for dev in dev_list:
             if((dev.type != 0) and (dev.active == 1) and (dev.idx > len(link_list[check_if_exists(nodes.link_node_key(self.header.local_id, self.header.dev_idx))].lndev_list))):  
                 lndev = nodes.link_dev_node(key = nodes.link_dev_key(link_list[check_if_exists(nodes.link_node_key(self.header.local_id, self.header.dev_idx))], dev))
@@ -231,30 +224,29 @@ def packet_received(self, ip6):
     main_local.pkt_received(self.header)
 
 
-    # FRAME ITERATION
+    ## FRAME ITERATION
     link_req = 0    # set to 1 if a REQ must be sent
     dev_req = 0     # set to 1 if a REQ must be sent
     rp = []         # holds rp_adv messages
     for frame in self.frames:
-        if(type(frame) == frames.LINK_ADV):         # LINK_ADV
+        if(type(frame) == frames.LINK_ADV):     # LINK_ADV
             main_local.link_adv_received(frame)
-        elif(type(frame) == frames.LINK_REQ):       # LINK_REQ
+        elif(type(frame) == frames.LINK_REQ):   # LINK_REQ
             link_req = main_local.link_req_received(frame)
-        elif(type(frame) == frames.DEV_ADV):        # DEV_ADV
+        elif(type(frame) == frames.DEV_ADV):    # DEV_ADV
             main_local.dev_adv_received(frame)
-        elif(type(frame) == frames.DEV_REQ):        # DEV_REQ
+        elif(type(frame) == frames.DEV_REQ):    # DEV_REQ
             dev_req = main_local.dev_req_received(frame)
-        elif(type(frame) == frames.RP_ADV):         # RP_ADV
+        elif(type(frame) == frames.RP_ADV):     # RP_ADV
             rp = frame.rp_msgs
             main_local.rp_adv_received(frame)
 
-        elif(type(frame) == frames.HELLO_ADV):      # HELLO_ADV
+        elif(type(frame) == frames.HELLO_ADV):  # HELLO_ADV
             if(link_index >= 0):
                 link_list[link_index].hello_adv_received(frame)
                 for lndev in link_list[link_index].lndev_list:
                     if(lndev.key.dev.active == 1):
                         lndev.hello_adv_received(frame)
-
 
     # match rp_adv msgs with link_adv msgs
     if rp:
@@ -266,8 +258,8 @@ def packet_received(self, ip6):
                         lndev.tx_probe_umetric = rp[rp_index].rp_127range
             rp_index = rp_index + 1
 
-    # obtain timeaware tx and rx values
-    for lndev in link_dev_list:                     # TO DO: check if update is critical
+    # obtain timeaware tx/rx values and update best linkdevs
+    for lndev in link_dev_list:                 # TO DO: check if update is critical
         lndev.update_tx()
         lndev.update_rx()
         # assign best link_dev_node for transmitting
@@ -288,15 +280,30 @@ def packet_received(self, ip6):
     else:
         main_local.best_linkdev = []
 
-    # time.sleep(10)
-    # print(time.perf_counter())
-    # print(nodes.start_time)
-    # print((time.perf_counter() - nodes.start_time) *1000)
 
+    ## FRAMES TO BE SENT
+    frames2send = []
 
-    # FRAMES TO BE SENT
+    # PERIODICAL
+    frames2send.append(frames.HELLO_ADV(                # HELLO_ADV
+                            frm_header=frames.header(
+                                short_frm=0,
+                                relevant_frm=0,
+                                frm_type=0,
+                                frm_len=0
+                            ),
+                            HELLO_sqn_no=0))
 
-    # HELLO_ADV
+    if main_local.link_tree:
+        rp = []
+        frames2send.append(frames.RP_ADV(               # RP_ADV
+                            frm_header=frames.header(
+                                short_frm=0,
+                                relevant_frm=0,
+                                frm_type=0,
+                                frm_len=0
+                            ),
+                            rp_msgs=rp))
     # RP_ADV
     if(main_local.packet_link_sqn_ref != self.header.link_adv_sqn):
         pass
@@ -304,22 +311,12 @@ def packet_received(self, ip6):
         # send unsolicited LINK_ADV
     # LINK_ADV
 
+    return frames2send
 
-
     
     
     
-    
-    # elif(exists > 0):               # existing node (UPDATES only)
-    #     node_list[exists].pkt_received(self.header)                         # update packet-related class attributes
-    #     for frame in self.frames:
-    #         if(type(frame) == frames.LINK_ADV):     # LINK_ADV
-    #             node_list[exists].link_adv_received(frame)                  # update frame-related class attributes
-    #         elif(type(frame) == frames.DEV_ADV):    # DEV_ADV
-    #             node_list[exists].dev_adv_received(frame)  
-    #         elif(type(frame) == frames.RP_ADV):     # RP_ADV
-    #             node_list[exists].rp_adv_received(frame)
-
+## DEBUGGING
 
 def print_all(nodes):
     print("ALL NODES")
@@ -343,7 +340,7 @@ def print_all(nodes):
                 print('\t\t\t\t\t\t', "link_dev_node", i3, ":")
                 # print('\t\t\t\t\t\t', "    list_n = [...]")             # not needed
                 print('\t\t\t\t\t\t', "    key:")           # dev node will add another level of depth
-                print('\t\t\t\t\t\t\t', "link_node = link_node", i2)
+                print('\t\t\t\t\t\t\t', "link_node =", link.key)
                 print('\t\t\t\t\t\t\t', "dev_node: ")
                 print('\t\t\t\t\t\t\t', "    name = ", lndev.key.dev.name)
                 print('\t\t\t\t\t\t\t', "    dev_idx = ", lndev.key.dev.idx)
@@ -404,12 +401,13 @@ def print_all(nodes):
         print()
 
 
-# TESTING
+## TESTING
 
-packet_received(packet, '::1')
+frames_list = packet_received(packet, '::1')
 print_all(local_list)
-packet_received(packet2, '::1')
-print_all(local_list)
+print(frames_list)
+# packet_received(packet2, '::1')
+# print_all(local_list)
 # print(local_ids)
 # print(link_keys)
 # print(link_list)

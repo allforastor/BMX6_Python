@@ -19,10 +19,10 @@ start_time = time.perf_counter()
 class local_node:
     local_id: int = -1                                                          # LOCAL_ID_T
     link_tree: list = field(default_factory=lambda:[])                          # avl_tree
-    best_rp_linkdev: list = field(default_factory=lambda:[])                        # link_dev_node
-    best_tp_linkdev: list = field(default_factory=lambda:[])                        # link_dev_node
-    best_linkdev: list = field(default_factory=lambda:[])                           # link_dev_node
-    neigh: list = field(default_factory=lambda:[])                                  # neigh_node
+    best_rp_linkdev: list = field(default_factory=lambda:[])                    # link_dev_node
+    best_tp_linkdev: list = field(default_factory=lambda:[])                    # link_dev_node
+    best_linkdev: list = field(default_factory=lambda:[])                       # link_dev_node
+    neigh: list = field(default_factory=lambda:[])                                  # neigh_node (GEOM)
 
     packet_sqn: int = -1                                                        # PKT_SQN_T
     packet_time: time = 0                                                       # TIME_T
@@ -31,21 +31,21 @@ class local_node:
     # from the latest LINK_ADV
     link_adv_sqn: int = -1                                                      # sqn of the latest LINK_ADV (LINKADV_SQN_T (0 - 255)(frames.LINK_ADV.dev_sqn_no_ref)
     link_adv_time: time = 0                                                     # time of the latest LINK_ADV frame (TIME_T)
-    link_adv_msgs: int = 0                                                      # number of msgs in the LINK_ADV frame
-    link_adv_msg_for_me: int = 0                                                # number of msgs for this node
-    link_adv_msg_for_him: int = 0                                               # number of msgs for other nodes
+    link_adv_msgs: int = -1                                                     # number of msgs in the LINK_ADV frame
+    link_adv_msg_for_me: int = -1                                               # index of the msg for this node
+    link_adv_msg_for_him: int = -1                                              # index of msg for the other node
     link_adv: list = field(default_factory=lambda:[])                           # msg_link_adv (frames.LINK_ADV)
     link_adv_dev_sqn_ref: int = -1                                              # DEVADV_SQN_T (0 - 255)(frames.DEV_ADV.dev_sqn_np)
 
     # from the latest DEV_ADV
     dev_adv_sqn: int = -1                                                       # sqn of the latest DEV_ADV (DEVADV_SQN_T (0 - 255)(frames.DEV_ADV.dev_sqn_np))
-    dev_adv_msgs: int = 0                                                       # number of msgs in the DEV_ADV frame
+    dev_adv_msgs: int = -1                                                      # number of msgs in the DEV_ADV frame
     dev_adv: list = field(default_factory=lambda:[])                            # msg_dev_adv (frames.DEV_ADV)
 
     # from the latest RP_ADV
     rp_adv_time: time = 0                                                       # time of the latest RP_ADV frame (TIME_T)
-    rp_ogm_request_received: int = -1                                               # IDM_T
-    orig_routes: int = -1                                                           # store originator
+    rp_ogm_request_received: int = -1                                               # IDM_T (HAROLD)
+    orig_routes: int = -1                                                           # store originator (HAROLD)
     
     def pkt_received(self, packet_header):
         self.packet_sqn = packet_header.pkt_sqn
@@ -59,35 +59,28 @@ class local_node:
                     if(lndev.key.dev.active == 1):
                         lndev.pkt_time_max = self.packet_time
 
+    def link_adv_received(self, frame):
+        # LOCAL_NODE
+        self.link_adv_sqn = self.packet_link_sqn_ref
+        self.link_adv_time = self.packet_time
+        self.link_adv_msgs = 0
+        self.link_adv_msg_for_me = -1
+        self.link_adv_msg_for_him = -1
+        self.link_adv.clear()
+        for x in frame.link_msgs:
+            if(x.peer_local_id == self.local_id):
+                self.link_adv_msg_for_me = self.link_adv_msgs
+            self.link_adv_msgs = self.link_adv_msgs + 1
+            self.link_adv.append(x)
+        # self.link_adv_msg_for_him = 0   # SET THIS WHEN SENDING
+        self.link_adv_dev_sqn_ref = frame.dev_sqn_no_ref
+
+
     def link_req_received(self, frame):
         if(frame.dest_local_id == self.local_id):
             return 1
         return 0
 
-    def link_adv_received(self, frame):
-        # LOCAL_NODE
-        self.link_adv_sqn = self.packet_link_sqn_ref
-        self.link_adv_time = (time.perf_counter() - start_time) * 1000      # bmx.start_time
-        self.link_adv_msgs = 0
-        self.link_adv_msg_for_me = 0
-        self.link_adv_msg_for_him = 0
-        self.link_adv.clear()
-        for x in frame.link_msgs:
-            self.link_adv_msgs = self.link_adv_msgs + 1
-            if(x.peer_local_id == self.local_id):
-                self.link_adv_msg_for_me = self.link_adv_msg_for_me + 1
-            else:
-                self.link_adv_msg_for_him = self.link_adv_msg_for_him + 1
-            self.link_adv.append(x)
-        self.link_adv_dev_sqn_ref = frame.dev_sqn_no_ref
-
-        # LINK_NODE, LINK_NODE_KEY
-        
-    def dev_req_received(self, frame):
-        if(frame.dest_local_id == self.local_id):
-            return 1
-        return 0 
-        
     def dev_adv_received(self, frame):
         self.dev_adv_sqn = frame.dev_sqn_no
         self.dev_adv_msgs = 0
@@ -95,11 +88,16 @@ class local_node:
         for x in frame.dev_msgs:
             self.dev_adv_msgs = self.dev_adv_msgs + 1
             self.dev_adv.append(x)  
+    
+    def dev_req_received(self, frame):
+        if(frame.dest_local_id == self.local_id):
+            return 1
+        return 0 
         
     def rp_adv_received(self, frame):
-        self.rp_adv_time = (time.perf_counter() - start_time) * 1000        # bmx.start_time
-        self.rp_ogm_request_received = 0    # HAROLD
-        self.orig_routes = 0                # HAROLD
+        self.rp_adv_time = self.packet_time
+        self.rp_ogm_request_received = 0    # (HAROLD)
+        self.orig_routes = 0                # (HAROLD)
 
         # LINK_NODE, LINK_NODE_KEY
         # update tx values
@@ -144,11 +142,10 @@ class link_node:
 
     def pkt_update(self):
         self.pkt_time_max = self.local.packet_time
-        
-    def frame_received(self, frame):
-        if(type(frame) == frames.HELLO_ADV):
-            self.hello_time_max = (time.perf_counter() - start_time) * 1000     # bmx.start_time
-            self.hello_sqn_max = frame.HELLO_sqn_no
+
+    def hello_adv_received(self, frame):
+        self.hello_time_max = self.pkt_time_max
+        self.hello_sqn_max = frame.HELLO_sqn_no
 
 @dataclass
 class dev_node:         # our own implementation
@@ -172,14 +169,12 @@ class link_dev_key:
 class lndev_probe_record:
     hello_sqn_max: int = -1                                                     # last sequence number (HELLO_SQN_T)
 
-    hello_array: deque = deque(128*[0], 128)
+    hello_array: deque = deque(127*[0], 127)
     hello_sum: int = 0                                                          # number of HELLO_ADVs received within the window
     hello_umetric: int = 0                                                      # UMETRIC_T
     hello_time_max: time = 0                                                    # timeout value for the HELLO packet (TIME_T)
 
     link_window = 48                                                       # sliding window size (48 default, 128 max)
-
-    # TO DO: make a function that appends 0 when nothing is received after some time
 
     def update_record(self, update):
         if(update == 1):
@@ -189,14 +184,16 @@ class lndev_probe_record:
         self.hello_sqn_max = self.hello_sqn_max + 1
 
     def HELLO_received(self, sqn):
-        if sqn == self.hello_sqn_max:
-            self.update_record(1)
-        elif(sqn > self.hello_sqn_max):
-            while sqn != self.hello_sqn_max + 1:
-                self.update_record(0)
-            self.update_record(1)
-        self.hello_time_max = (time.perf_counter() - start_time) * 1000         # bmx.start_time
-        print(self.hello_time_max)
+        skipped = 0
+        while sqn != self.hello_sqn_max + 1:
+            if(skipped == 127):                     # entire array is 0, so just skip to the 1
+                break
+            elif(self.hello_sqn_max + 1 == 65535):  # loop once the uint16_t (2 bytes) limit is reached
+                self.hello_sqn_max = -1
+            self.update_record(0)
+            skipped = skipped + 1
+        self.update_record(1)
+        self.hello_sqn_max = sqn
 
     def get_link_qual(self):
         self.hello_sum = 0
@@ -231,20 +228,24 @@ class link_dev_node:
     link_adv_msg: int = -1                                                      # frame counter of announced links (-1 if not announced)
     pkt_time_max: time = 0                                                      # timeout value for packets (TIME_T)
 
-    def update_tx(self, umetric):                                               # every RP_ADV received
-        rp_adv_time = link_dev_key.link.local.rp_adv_time
-        self.tx_probe_umetric = umetric
-        if(((time.perf_counter() - start_time) * 1000) - rp_adv_time < 3000):       # TP_ADV_DELAY_TOLERANCE (3s)
+    def hello_adv_received(self, frame):
+        self.rx_probe_record.HELLO_received(frame.HELLO_sqn_no)
+        self.rx_probe_record.get_link_qual()
+        self.rx_probe_record.hello_time_max = self.key.link.pkt_time_max
+
+    def update_tx(self):                                                        # every RP_ADV received
+        rp_adv_time = self.key.link.local.rp_adv_time
+        if(self.pkt_time_max - rp_adv_time < 3000):       # TP_ADV_DELAY_TOLERANCE (3s)
             self.timeaware_tx_probe = self.tx_probe_umetric
-        elif(((time.perf_counter() - start_time) * 1000) - rp_adv_time < 20000):    # TP_ADV_DELAY_RANGE (20s)
-            self.timeaware_tx_probe = self.tx_probe_umetric * (20000 - ((time.perf_counter() - start_time) * 1000)/20000)
+        elif(self.pkt_time_max - rp_adv_time < 20000):    # TP_ADV_DELAY_RANGE (20s)
+            self.timeaware_tx_probe = self.tx_probe_umetric * ((20000 - self.pkt_time_max)/20000)
 
     def update_rx(self):                                                        # every HELLO_ADV received
         hello_adv_time = self.rx_probe_record.hello_time_max
-        if(((time.perf_counter() - start_time) * 1000) - hello_adv_time < 3000):    # RP_ADV_DELAY_TOLERANCE (3s)
+        if(self.pkt_time_max - hello_adv_time < 3000):    # RP_ADV_DELAY_TOLERANCE (3s)
             self.timeaware_rx_probe = self.rx_probe_record.hello_umetric
-        elif(((time.perf_counter() - start_time) * 1000) - hello_adv_time < 20000): # RP_ADV_DELAY_RANGE (20s)
-            self.timeaware_rx_probe = self.rx_probe_record.hello_umetric * (20000 - ((time.perf_counter() - start_time) * 1000)/20000)
+        elif(self.pkt_time_max - hello_adv_time < 20000): # RP_ADV_DELAY_RANGE (20s)
+            self.timeaware_rx_probe = self.rx_probe_record.hello_umetric * ((20000 - self.pkt_time_max)/20000)
 
     
 
