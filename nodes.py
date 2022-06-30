@@ -109,19 +109,6 @@ class local_node:
         # call lndev assign best lndev (only best rx will be altered)
         pass
 
-
-    #def set_iid_offset_for_ogm_msg(self, OGM_ADV, neighbor):   # initialize iid offset for msgs # migrate to somewhere # works for 1 frame only # modified
-    #    for msg in OGM_ADV.ogm_adv_msgs:
-    #        if msg.iid_offset is None:  # ogm msg is in the originator, initialization # maybe change to < 0
-    #            msg.iid_offset = 0
-    #            iid = msg.iid_offset
-    #        else:
-    #            neighiid = msg.iid_offset   # ogm msg contains iid of the originator
-    #            iid = neighbor.get_myIID4x_by_neighIID4x(neighiid)
-    #            msg.iid_offset = iid
-    #
-    #    self.orig_routes = iid  # store iid value to local node
-
 @dataclass
 class link_node_key:
     local_id: int = -1                                                          # local ID of the other node (LOCAL_ID_T)
@@ -548,33 +535,45 @@ class ogm_aggreg_node:
     ogm_advs: list = field(default_factory=lambda: [])
 
     ogm_dest_field: list = field(default_factory=lambda: [])   # array[(OGM_DEST_ARRAY_BIT_SIZE/8)]  # store dests where ogm frame is supposed to be sent
-    #ogm_dest_bytes: int                # removed from original
+    #ogm_dest_bytes: int                        # removed from original
 
-    aggregated_msgs_sqn_no: int = 0    # originally aggregated_msgs # deviated from original
+    aggregated_msgs_sqn_no: int = 0             # originally aggregated_msgs # deviated from original
 
     sqn: int = 0  # AGGREG_SQN_T (8 bits)
-    #tx_attempt: int                    # removed from original
+    #tx_attempt: int                            # removed from original
     
-    def update_self(self, frame):       # initialize / update self after receiving ogm_adv frames
+    def update_self(self, frame):               # initialize / update self after receiving ogm_adv frames
         if type(frame) == frames.OGM_ADV:
             self.ogm_advs.append(frame)
 
-    def set_sqn_no_ogmframes_and_msgs(self):  # set aggregated seq no for ogm frame and sqn_no for msgs
-        for frame in self.ogm_advs:     # n^2 time complexity
+    def set_sqn_no_ogmframes_and_msgs(self):    # set aggregated seq no for ogm frame and sqn_no for msgs
+        for frame in self.ogm_advs:             # n^2 time complexity
             for msgs in frame.ogm_adv_msgs:
-                if msgs.ogm_sqn_no < 0:     # check if the msg has not yet been given a sqn number (-1 is default)
+                if msgs.ogm_sqn_no < 0:         # check if the msg has not yet been given a sqn number (-1 is default)
                     msgs.ogm_sqn_no = self.aggregated_msgs_sqn_no
                     self.aggregated_msgs_sqn_no += 1
 
                 else:
-                    continue    # if msgs already given a sqn number, ignore
+                    continue                    # if msgs already given a sqn number, ignore
             assert self.aggregated_msgs_sqn_no < 65536      # make sure sqn no for msgs doesnt exceed ogm sqn range size
 
-            if frame.agg_sqn_no < 0:   # check if the frame has not yet been given a sqn number (-1 is default)
+            if frame.agg_sqn_no < 0:            # check if the frame has not yet been given a sqn number (-1 is default)
                 frame.agg_sqn_no = self.sqn
                 self.sqn += 1
 
             else:
-                continue    # # if frame already given a sqn number, ignore
+                continue                        # # if frame already given a sqn number, ignore
+                
+    def set_iid_offset_for_ogm_msg(self, neighbor):   # initialize iid offset for msgs 
+        for frame in self.ogm_advs:
+            for msg in frame.ogm_adv_msgs:
+                if msg.iid_offset is None:      # ogm msg is in the originator, initialization # maybe change to < 0
+                    msg.iid_offset = 0
+                    iid = msg.iid_offset
+                else:
+                    neighiid = msg.iid_offset   # ogm msg contains iid of the originator
+                    iid = neighbor.get_myIID4x_by_neighIID4x(neighiid)
+                    msg.iid_offset = iid
 
+        return iid                              # store iid value to local node
                 

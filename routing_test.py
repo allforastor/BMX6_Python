@@ -50,23 +50,10 @@ from nodes import local_node, router_node, iid_repos, neigh_node, ogm_aggreg_nod
 #
 #                                                    C
 #-----------------------------------------------------------------------------------------------------------------
-# ver 6.24.2022 - improvements in neigh node implementation
+# ver 6.29.2022 - improvements as how it would be expected in runtime
+# assumptions: local_node, iid_repos, neigh_node are already instantiated
 #
 
-# creation of msgs and frame    # modified
-msg1 = OGM_ADV_msg()
-msg2 = OGM_ADV_msg()
-msg3 = OGM_ADV_msg()
-msg4 = OGM_ADV_msg()
-msg5 = OGM_ADV_msg()
-msg6 = OGM_ADV_msg()
-ogmframe1 = OGM_ADV(header())
-ogmframe1.ogm_adv_msgs.extend([msg1, msg2, msg3])
-
-
-########################################################################################################
-#test iid_offset generation
-#
 #initialize node A's iid repo
 nodeA = iid_repos(dict(), 0)
 nodeA.arr[0] = "Hash_A"
@@ -74,8 +61,7 @@ nodeA.arr[1] = "Hash_B"
 nodeA.arr[2] = "Hash_C"
 
 #initialize local node for node A, store originator
-nodeA_local = local_node(" ", " ", " ", " ", " ", " ", " ", " ", " ", " ", " ", " ", " ", " ", " ", " ", " ", " ", " ",
-                   " ", " ", " ")  # stores originator info
+nodeA_local = local_node()  # stores originator info
 
 #initialize node B's iid repo
 nodeB = iid_repos(dict(), 0)
@@ -84,8 +70,7 @@ nodeB.arr[1] = "Hash_A"
 nodeB.arr[2] = "Hash_C"
 
 #initialize local node for node B, store originator
-nodeB_local = local_node(" ", " ", " ", " ", " ", " ", " ", " ", " ", " ", " ", " ", " ", " ", " ", " ", " ", " ", " ",
-                   " ", " ", " ")  # stores originator info
+nodeB_local = local_node()# stores originator info
 
 # initialize neighbor repository of B for A
 B_neighnodeA = neigh_node(0, 0, 0, 0, iid_repos({0: 1, 1: 0, 2: 2}, 0), 0, 0, 0, 0)
@@ -97,8 +82,7 @@ nodeC.arr[1] = "Hash_B"
 nodeC.arr[2] = "Hash_A"
 
 #initialize local node for node C, store originator
-nodeC_local = local_node(" ", " ", " ", " ", " ", " ", " ", " ", " ", " ", " ", " ", " ", " ", " ", " ", " ", " ", " ",
-                   " ", " ", " ")  # stores originator info
+nodeC_local = local_node()  # stores originator info
 
 #initialize neighbor repository of C for B
 C_neighnodeB = neigh_node(0,0,0,0,iid_repos({0:1, 1:2, 2:0},0),0,0,0,0)
@@ -112,11 +96,27 @@ nodeC.print_repos()
 C_neighnodeB.neighIID4x_repos.print_repos()
 
 
+# creation of msgs and frame
+msg1 = OGM_ADV_msg()
+msg2 = OGM_ADV_msg()
+msg3 = OGM_ADV_msg()
+msg4 = OGM_ADV_msg()
+msg5 = OGM_ADV_msg()
+msg6 = OGM_ADV_msg()
+ogmframe1 = OGM_ADV(header())
+ogmframe1.ogm_adv_msgs.extend([msg1, msg2, msg3])   # for loop for every new msgs in actual runtime
+
+#after msgs are done being collected to the frame and is ready to be sent out (every 5s)
+nodeA_ogm_aggreg_node = ogm_aggreg_node()
+nodeA_ogm_aggreg_node.update_self(ogmframe1)
+nodeA_ogm_aggreg_node.set_sqn_no_ogmframes_and_msgs()
+print(nodeA_ogm_aggreg_node)
+
 # node A
 for idx, msgs in enumerate(ogmframe1.ogm_adv_msgs):         # display current iid offset (before)
     print("IID offsets of the msg{}: {}".format(idx+1, msgs.iid_offset))
-print("--------------------")
-nodeA_local.set_iid_offset_for_ogm_msg(ogmframe1, nodeB)    # set iid_offset of the msgs in frame
+nodeA_local.orig_routes = nodeA_ogm_aggreg_node.set_iid_offset_for_ogm_msg(nodeB)     # set iid offset     # no connection yet between local node and other nodes hence this implementation
+print("--------------------------")
 for idx, msgs in enumerate(ogmframe1.ogm_adv_msgs):         # display updated iid offset
     print("IID offsets of the msg{}: {}".format(idx+1, msgs.iid_offset))
 print("Stored IID in node A:", nodeA_local.orig_routes)      # print stored originator info
@@ -126,58 +126,26 @@ print("traversing to node B")
 print("--------------------")
 
 # traverse to node B
-nodeB_local.set_iid_offset_for_ogm_msg(ogmframe1, B_neighnodeA)     # set iid_offset of the msgs in frame
-for idx, msgs in enumerate(ogmframe1.ogm_adv_msgs):         # display updated iid offset
+nodeB_ogm_aggreg_node = ogm_aggreg_node()                       # create aggreg node for B
+nodeB_ogm_aggreg_node.update_self(ogmframe1)                    # update node B
+nodeB_local.orig_routes = nodeB_ogm_aggreg_node.set_iid_offset_for_ogm_msg(B_neighnodeA)     # set iid_offset  # no connection yet between local node and other nodes hence this implementation
+for idx, msgs in enumerate(ogmframe1.ogm_adv_msgs):         # display updated iid offset                # presentation purposes
     print("IID offsets of the msg{}: {}".format(idx+1, msgs.iid_offset))
-print("Stored IID in node B:", nodeB_local.orig_routes)      # print stored originator info
-B_neighnodeA.get_node_by_neighIID4x(nodeB, nodeA_local.orig_routes)     # obtain hash of originator     
+print("Stored IID in node B:", nodeB_local.orig_routes)      # print stored originator info             # presentation purposes
+B_neighnodeA.get_node_by_neighIID4x(nodeB, nodeA_local.orig_routes)     # obtain hash of originator     # presentation purposes
 
 print("--------------------")
 print("traversing to node C")
 print("--------------------")
 
 # traverse to node C
-nodeC_local.set_iid_offset_for_ogm_msg(ogmframe1, C_neighnodeB)     # set iid_offset of the msgs in frame
-for idx, msgs in enumerate(ogmframe1.ogm_adv_msgs):         # display updated iid offset
+nodeC_ogm_aggreg_node = ogm_aggreg_node()                       # create aggreg node for C
+nodeC_ogm_aggreg_node.update_self(ogmframe1)                    # update node C
+nodeC_local.orig_routes = nodeC_ogm_aggreg_node.set_iid_offset_for_ogm_msg(C_neighnodeB)     # set iid_offset  # no connection yet between local node and other nodes hence this implementation
+for idx, msgs in enumerate(ogmframe1.ogm_adv_msgs):         # display updated iid offset                # presentation purposes
     print("IID offsets of the msg{}: {}".format(idx+1, msgs.iid_offset))
-print("Stored IID in node C:", nodeC_local.orig_routes)      # print stored originator info
-C_neighnodeB.get_node_by_neighIID4x(nodeC, nodeB_local.orig_routes)     # obtain hash of originator     
+print("Stored IID in node C:", nodeC_local.orig_routes)      # print stored originator info             # presentation purposes
+C_neighnodeB.get_node_by_neighIID4x(nodeC, nodeB_local.orig_routes)     # obtain hash of originator     # presentation purposes
 
-############################################################################################################################
-
-# test aggregated ogm frame sqn no  
-#ogmframe2 = OGM_ADV(header())
-#nodeA_ogm_aggreg = ogm_aggreg_node()
-#nodeA_ogm_aggreg.ogm_advs.extend([ogmframe1, ogmframe2])
-#nodeA_router = router_node("", "", "", 0, 0, "")
-#
-#nodeA_ogm_aggreg.set_sqn_no_ogmframes_and_msgs()  # set aggregated sqqn no for each frame
-#
-#ogmframe3 = OGM_ADV(header())
-#ogmframe3.ogm_adv_msgs.extend([msg4, msg5, msg6])
-#nodeA_ogm_aggreg.ogm_advs.append(ogmframe3)
-#nodeA_ogm_aggreg.set_sqn_no_ogmframes_and_msgs()
-##print(ogmframe3)
-#nodeA_ogm_aggreg.ogm_advs.remove(ogmframe2)
-#nodeA_ogm_aggreg.set_sqn_no_ogmframes_and_msgs()
-#for things in nodeA_ogm_aggreg.ogm_advs:
-#    print(things)
-#
-#print(nodeA_ogm_aggreg.aggregated_msgs_sqn_no, nodeA_ogm_aggreg.sqn)
-##########################################################################################
-# test ack ogm frame
-#nodeA_orig = orig_node(0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0)
-#result = nodeA_orig.ack_ogm_frame(ogmframe1)
-#
-#for x in result:
-#    print(x.agg_sqn_no)
-##########################################################################################
-
-#nodeA_router = router_node(""," ", 0, "", "", "")
-#ogmframe1.agg_sqn_no = 0
-#ogmframe2.agg_sqn_no = 1
-#ogmframe3.agg_sqn_no = 2
-#nodeA_router.update_self(ogmframe3)
-#print(nodeA_router.ogm_sqn_last)
 
 
