@@ -19,10 +19,10 @@ start_time = time.perf_counter()
 class local_node:
     local_id: int = -1                                                          # LOCAL_ID_T
     link_tree: list = field(default_factory=lambda:[])                          # avl_tree
-    best_rp_linkdev: list = field(default_factory=lambda:[])                        # link_dev_node
-    best_tp_linkdev: list = field(default_factory=lambda:[])                        # link_dev_node
-    best_linkdev: list = field(default_factory=lambda:[])                           # link_dev_node
-    neigh: list = field(default_factory=lambda:[])                                  # neigh_node
+    best_rp_linkdev: list = field(default_factory=lambda:[])                    # link_dev_node
+    best_tp_linkdev: list = field(default_factory=lambda:[])                    # link_dev_node
+    best_linkdev: list = field(default_factory=lambda:[])                       # link_dev_node
+    neigh: list = field(default_factory=lambda:[])                                  # neigh_node (GEOM)
 
     packet_sqn: int = -1                                                        # PKT_SQN_T
     packet_time: time = 0                                                       # TIME_T
@@ -31,65 +31,56 @@ class local_node:
     # from the latest LINK_ADV
     link_adv_sqn: int = -1                                                      # sqn of the latest LINK_ADV (LINKADV_SQN_T (0 - 255)(frames.LINK_ADV.dev_sqn_no_ref)
     link_adv_time: time = 0                                                     # time of the latest LINK_ADV frame (TIME_T)
-    link_adv_msgs: int = 0                                                      # number of msgs in the LINK_ADV frame
-    link_adv_msg_for_me: int = 0                                                # number of msgs for this node
-    link_adv_msg_for_him: int = 0                                               # number of msgs for other nodes
+    link_adv_msgs: int = -1                                                     # number of msgs in the LINK_ADV frame
+    link_adv_msg_for_me: int = -1                                               # index of the msg for this node
+    link_adv_msg_for_him: int = -1                                              # index of msg for the other node
     link_adv: list = field(default_factory=lambda:[])                           # msg_link_adv (frames.LINK_ADV)
     link_adv_dev_sqn_ref: int = -1                                              # DEVADV_SQN_T (0 - 255)(frames.DEV_ADV.dev_sqn_np)
 
     # from the latest DEV_ADV
     dev_adv_sqn: int = -1                                                       # sqn of the latest DEV_ADV (DEVADV_SQN_T (0 - 255)(frames.DEV_ADV.dev_sqn_np))
-    dev_adv_msgs: int = 0                                                       # number of msgs in the DEV_ADV frame
+    dev_adv_msgs: int = -1                                                      # number of msgs in the DEV_ADV frame
     dev_adv: list = field(default_factory=lambda:[])                            # msg_dev_adv (frames.DEV_ADV)
 
     # from the latest RP_ADV
     rp_adv_time: time = 0                                                       # time of the latest RP_ADV frame (TIME_T)
-    rp_ogm_request_received: int = -1                                               # IDM_T
-    orig_routes: int = -1                                                           # store originator
+    rp_ogm_request_received: int = -1                                               # IDM_T (HAROLD)
+    orig_routes: int = -1                                                           # store originator (HAROLD)
     
     def pkt_received(self, packet_header):
-        if self.packet_sqn != packet_header.pkt_sqn:
-            pass        # send LINK_REQ
         self.packet_sqn = packet_header.pkt_sqn
         self.packet_time = (time.perf_counter() - start_time) * 1000            # bmx.start_time
         self.packet_link_sqn_ref = packet_header.link_adv_sqn
 
         for ln in self.link_tree:
-            if((ln.key.local_id == packet_header.local_id) and (ln.key.local_id == packet_header.local_id)):
+            if((ln.key.local_id == packet_header.local_id) and (ln.key.dev_idx == packet_header.dev_idx)):
                 ln.pkt_time_max = self.packet_time
                 for lndev in ln.lndev_list:
                     if(lndev.key.dev.active == 1):
                         lndev.pkt_time_max = self.packet_time
+
+    def link_adv_received(self, frame):
+        # LOCAL_NODE
+        self.link_adv_sqn = self.packet_link_sqn_ref
+        self.link_adv_time = self.packet_time
+        self.link_adv_msgs = 0
+        self.link_adv_msg_for_me = -1
+        self.link_adv_msg_for_him = -1
+        self.link_adv.clear()
+        for x in frame.link_msgs:
+            if(x.peer_local_id == self.local_id):
+                self.link_adv_msg_for_me = self.link_adv_msgs
+            self.link_adv_msgs = self.link_adv_msgs + 1
+            self.link_adv.append(x)
+        # self.link_adv_msg_for_him = 0   # SET THIS WHEN SENDING
+        self.link_adv_dev_sqn_ref = frame.dev_sqn_no_ref
+
 
     def link_req_received(self, frame):
         if(frame.dest_local_id == self.local_id):
             return 1
         return 0
 
-    def link_adv_received(self, frame):
-        # LOCAL_NODE
-        self.link_adv_sqn = self.packet_link_sqn_ref
-        self.link_adv_time = (time.perf_counter() - start_time) * 1000      # bmx.start_time
-        self.link_adv_msgs = 0
-        self.link_adv_msg_for_me = 0
-        self.link_adv_msg_for_him = 0
-        self.link_adv.clear()
-        for x in frame.link_msgs:
-            self.link_adv_msgs = self.link_adv_msgs + 1
-            if(x.peer_local_id == self.local_id):
-                self.link_adv_msg_for_me = self.link_adv_msg_for_me + 1
-            else:
-                self.link_adv_msg_for_him = self.link_adv_msg_for_him + 1
-            self.link_adv.append(x)
-        self.link_adv_dev_sqn_ref = frame.dev_sqn_no_ref
-
-        # LINK_NODE, LINK_NODE_KEY
-        
-    def dev_req_received(self, frame):
-        if(frame.dest_local_id == self.local_id):
-            return 1
-        return 0 
-        
     def dev_adv_received(self, frame):
         self.dev_adv_sqn = frame.dev_sqn_no
         self.dev_adv_msgs = 0
@@ -97,11 +88,16 @@ class local_node:
         for x in frame.dev_msgs:
             self.dev_adv_msgs = self.dev_adv_msgs + 1
             self.dev_adv.append(x)  
+    
+    def dev_req_received(self, frame):
+        if(frame.dest_local_id == self.local_id):
+            return 1
+        return 0 
         
     def rp_adv_received(self, frame):
-        self.rp_adv_time = (time.perf_counter() - start_time) * 1000        # bmx.start_time
-        self.rp_ogm_request_received = 0    # HAROLD
-        self.orig_routes = 0                # HAROLD
+        self.rp_adv_time = self.packet_time
+        self.rp_ogm_request_received = 0    # (HAROLD)
+        self.orig_routes = 0                # (HAROLD)
 
         # LINK_NODE, LINK_NODE_KEY
         # update tx values
@@ -112,19 +108,6 @@ class local_node:
         # update rx values (lndev probe record)
         # call lndev assign best lndev (only best rx will be altered)
         pass
-
-
-    #def set_iid_offset_for_ogm_msg(self, OGM_ADV, neighbor):   # initialize iid offset for msgs # migrate to somewhere # works for 1 frame only # modified
-    #    for msg in OGM_ADV.ogm_adv_msgs:
-    #        if msg.iid_offset is None:  # ogm msg is in the originator, initialization # maybe change to < 0
-    #            msg.iid_offset = 0
-    #            iid = msg.iid_offset
-    #        else:
-    #            neighiid = msg.iid_offset   # ogm msg contains iid of the originator
-    #            iid = neighbor.get_myIID4x_by_neighIID4x(neighiid)
-    #            msg.iid_offset = iid
-    #
-    #    self.orig_routes = iid  # store iid value to local node
 
 @dataclass
 class link_node_key:
@@ -146,11 +129,10 @@ class link_node:
 
     def pkt_update(self):
         self.pkt_time_max = self.local.packet_time
-        
-    def frame_received(self, frame):
-        if(type(frame) == frames.HELLO_ADV):
-            self.hello_time_max = (time.perf_counter() - start_time) * 1000     # bmx.start_time
-            self.hello_sqn_max = frame.HELLO_sqn_no
+
+    def hello_adv_received(self, frame):
+        self.hello_time_max = self.pkt_time_max
+        self.hello_sqn_max = frame.HELLO_sqn_no
 
 @dataclass
 class dev_node:         # our own implementation
@@ -174,14 +156,12 @@ class link_dev_key:
 class lndev_probe_record:
     hello_sqn_max: int = -1                                                     # last sequence number (HELLO_SQN_T)
 
-    hello_array: deque = deque(128*[0], 128)
+    hello_array: deque = deque(127*[0], 127)
     hello_sum: int = 0                                                          # number of HELLO_ADVs received within the window
     hello_umetric: int = 0                                                      # UMETRIC_T
     hello_time_max: time = 0                                                    # timeout value for the HELLO packet (TIME_T)
 
     link_window = 48                                                       # sliding window size (48 default, 128 max)
-
-    # TO DO: make a function that appends 0 when nothing is received after some time
 
     def update_record(self, update):
         if(update == 1):
@@ -191,14 +171,16 @@ class lndev_probe_record:
         self.hello_sqn_max = self.hello_sqn_max + 1
 
     def HELLO_received(self, sqn):
-        if sqn == self.hello_sqn_max:
-            self.update_record(1)
-        elif(sqn > self.hello_sqn_max):
-            while sqn != self.hello_sqn_max + 1:
-                self.update_record(0)
-            self.update_record(1)
-        self.hello_time_max = (time.perf_counter() - start_time) * 1000         # bmx.start_time
-        print(self.hello_time_max)
+        skipped = 0
+        while sqn != self.hello_sqn_max + 1:
+            if(skipped == 127):                     # entire array is 0, so just skip to the 1
+                break
+            elif(self.hello_sqn_max + 1 == 65535):  # loop once the uint16_t (2 bytes) limit is reached
+                self.hello_sqn_max = -1
+            self.update_record(0)
+            skipped = skipped + 1
+        self.update_record(1)
+        self.hello_sqn_max = sqn
 
     def get_link_qual(self):
         self.hello_sum = 0
@@ -233,20 +215,24 @@ class link_dev_node:
     link_adv_msg: int = -1                                                      # frame counter of announced links (-1 if not announced)
     pkt_time_max: time = 0                                                      # timeout value for packets (TIME_T)
 
-    def update_tx(self, umetric):                                               # every RP_ADV received
-        rp_adv_time = link_dev_key.link.local.rp_adv_time
-        self.tx_probe_umetric = umetric
-        if(((time.perf_counter() - start_time) * 1000) - rp_adv_time < 3000):       # TP_ADV_DELAY_TOLERANCE (3s)
+    def hello_adv_received(self, frame):
+        self.rx_probe_record.HELLO_received(frame.HELLO_sqn_no)
+        self.rx_probe_record.get_link_qual()
+        self.rx_probe_record.hello_time_max = self.key.link.pkt_time_max
+
+    def update_tx(self):                                                        # every RP_ADV received
+        rp_adv_time = self.key.link.local.rp_adv_time
+        if(self.pkt_time_max - rp_adv_time < 3000):       # TP_ADV_DELAY_TOLERANCE (3s)
             self.timeaware_tx_probe = self.tx_probe_umetric
-        elif(((time.perf_counter() - start_time) * 1000) - rp_adv_time < 20000):    # TP_ADV_DELAY_RANGE (20s)
-            self.timeaware_tx_probe = self.tx_probe_umetric * (20000 - ((time.perf_counter() - start_time) * 1000)/20000)
+        elif(self.pkt_time_max - rp_adv_time < 20000):    # TP_ADV_DELAY_RANGE (20s)
+            self.timeaware_tx_probe = self.tx_probe_umetric * ((20000 - self.pkt_time_max)/20000)
 
     def update_rx(self):                                                        # every HELLO_ADV received
         hello_adv_time = self.rx_probe_record.hello_time_max
-        if(((time.perf_counter() - start_time) * 1000) - hello_adv_time < 3000):    # RP_ADV_DELAY_TOLERANCE (3s)
+        if(self.pkt_time_max - hello_adv_time < 3000):    # RP_ADV_DELAY_TOLERANCE (3s)
             self.timeaware_rx_probe = self.rx_probe_record.hello_umetric
-        elif(((time.perf_counter() - start_time) * 1000) - hello_adv_time < 20000): # RP_ADV_DELAY_RANGE (20s)
-            self.timeaware_rx_probe = self.rx_probe_record.hello_umetric * (20000 - ((time.perf_counter() - start_time) * 1000)/20000)
+        elif(self.pkt_time_max - hello_adv_time < 20000): # RP_ADV_DELAY_RANGE (20s)
+            self.timeaware_rx_probe = self.rx_probe_record.hello_umetric * ((20000 - self.pkt_time_max)/20000)
 
     
 
@@ -280,6 +266,19 @@ class router_node:
                 print("Warning! Missed an OGM_ADV frame!")
             self.ogm_sqn_last = frame.agg_sqn_no
 
+@dataclass
+class description:  
+    name: str = None                    # hostname of node
+    pkid: str = None                    # random part of global ID
+    code_version: int = None            # replaced with git revision
+    capabilites: int = 0                # Supposed to be used to indicate future capabilities of the BMX6 process.
+    desc_sqn_no: int = -1               # starts at random
+    ogm_min_sqn_no: int = 0             # default 0
+    ogm_range: int = 65535              # default 0 to 2^16
+    trans_interval: int = 500           # time interval for every packet sent in ms, default is 0.5s
+    ext_len: int = None                 # not sure if this will be used
+    ext_frm: int = None                 # not sure if this will be used
+            
 @dataclass
 class description_hash:
     u8: int                             # array[HASH_SHA1_LEN] - [20]
@@ -451,75 +450,59 @@ class host_metricalgo:
     #late_penalty: int  # uint8_t    # penalize non-first received ogm advs  # excluded for now
 
 @dataclass
-class orig_node:    
-    global_id: str             # GLOBAL_ID_T (32 len) + PKID_T # default None
+class orig_node:
+    global_id: str = None                           # GLOBAL_ID_T (32 len) + PKID_T # default None
 
-    dhash_n: list               # dhash_node   # default dhash_node
-    desc: int  # **description (MISSING???) # default = None # DESC_ADV
-    desc_tlv_hash_tree: int     # **avl_tree
+    dhash_n: dhash_node = None                      # dhash_node
+    desc: description = None                        # **description (MISSING???) # default = None # DESC_ADV
+    #desc_tlv_hash_tree: int                        # **avl_tree   # removed
 
-    updated_timestamp: time     # last time this orig node's description was updated in s # dependedent on last received DESC_ADV
+    updated_timestamp: time = 0                     # TIME_T   # last time this orig node's description was updated # default # dependedent on last received DESC_ADV
 
-    desc_sqn: int  # DESC_SQN_T (16 bits) # DESC_ADV
+    desc_sqn: int = -1                              # DESC_SQN_T (16 bits) # DESC_ADV
 
-    ogm_sqn_range_min: int      # OGM_SQN_T (16 bits) # default 0  # DESC_ADV
-    ogm_sqn_range_size: int     # OGM_SQN_T (16 bits)  # default 65535    # DESC_ADV
+    ogm_sqn_range_min: int = 0                      # OGM_SQN_T (16 bits) # default 0  # DESC_ADV
+    ogm_sqn_range_size: int = 65535                 # OGM_SQN_T (16 bits)  # default 65535    # DESC_ADV
 
-    primary_ip: ipaddress.ip_address    # ip of link (IPX_T), default = ipaddress.ip_address('0.0.0.0')
-    primary_ip_str: str         # array[IPX_STR_LEN]
-    blocked: int                # indicates whether this node is blocked
-    added: int
+    primary_ip: ipaddress.ip_address = ipaddress.ip_address('0.0.0.0')         # ip of link (IPX_T)
+    #primary_ip_str: str                            # array[IPX_STR_LEN], removed
+    #blocked: int                                   # indicates whether this node is blocked, assume no functionality of blocking nodes
+    #added: int
 
-    path_metricalgo: host_metricalgo  # **host_metricalgo (HAROLD) # modified
+    path_metricalgo: host_metricalgo = None         # **host_metricalgo (HAROLD)
 
-    ogm_sqn_max_received: int  # OGM_SQN_T (16 bits)
+    ogm_sqn_max_received: int = -1                  # OGM_SQN_T (16 bits)
 
-    ogm_sqn_next: int  # OGM_SQN_T (16 bits)
-    ogm_metric_next: int  # UMETRIC_T
+    ogm_sqn_next: int = -1                          # OGM_SQN_T (16 bits)
+    ogm_metric_next: int = -1                       # UMETRIC_T
 
-    ogm_sqn_send: int  # OGM_SQN_T (16 bits)
+    ogm_sqn_send: int = -1                          # OGM_SQN_T (16 bits)
 
-    metric_sqn_max_arr: int  # UMETRIC_T - *remove*
+    #metric_sqn_max_arr: int                        # UMETRIC_T , removed
 
-    rt_tree: int  # **avl_tree
+    #rt_tree: int                                   # removed
 
-    best_rt_local: router_node
-    curr_rt_local: router_node
-    curr_rt_linkdev: link_dev_node
-    
-    def global_id_gen(self):    
-        name = socket.gethostname()
-        randomm = randint(75557863725914323419136, 1208925819614629174706175)  # 1 w/ 19 0's in decimal, 20 F's
-        x = hex(randomm)  # str output
-        formatt = x[2:]
-        glid = name + "." + formatt
-        self.global_id = glid
+    best_rt_local: router_node = None
+    curr_rt_local: router_node = None
+    curr_rt_linkdev: link_dev_node = None
 
-        return glid
-        
-    def update_self(self, frame):     # create global id (160bits)
-        #changed = 0        # use for tracking change in self.desc
-        if type(frame) == frames.DESC_ADV:
-            self.global_id = frame.desc_msgs.name + frame.desc_msgs.pkid  # 32bytes + 20 bytes
-            self.primary_ip = socket.gethostbyname(frame.name)
+    def update_self(self, frame):               # modified
+        if type(frame) == frames.DESC_ADV:      # receiving new description
+            self.updated_timestamp = (time.perf_counter() - start_time) * 1000  # bmx6_time
             self.desc_sqn = frame.desc_sqn_no
-            #prev_val = self.desc       # check whether desc is changed. dont know how desc is represented
-            #if prev_val !=
-#
-        if type(frame) == frames.OGM_ADV:
+            self.primary_ip = socket.gethostbyname(frame.name)
+
+        elif type(frame) == frames.OGM_ADV:
             self.ogm_sqn_max_received = frame.agg_sqn_no
             self.ogm_sqn_next = frame.agg_sqn_no + 1
             self.ogm_sqn_send = frame.agg_sqn_no
 
-    #def last_desc_update(self):    # return time in seconds since the last description update
-    #    pass
+    def update_path_metrics(self):              # update seen from line 966, metrics.c
+        pass
 
-    #def update_path_metrics(self):      # update seen from line 966, metrics.c
-    #    pass
-
-    def ack_ogm_frame(self, frame):  # function to ack ogm frames by creating ogm ack msgs
-        if type(frame) == frames.OGM_ADV:  # check if ogm adv is received
-            ack_msg1 = frames.OGM_ACK_msg  # assign 2 ack msgs with sqn number of ogm frame
+    def ack_ogm_frame(self, frame):             # function to ack ogm frames by creating ogm ack msgs
+        if type(frame) == frames.OGM_ADV:       # check if ogm adv is received
+            ack_msg1 = frames.OGM_ACK_msg       # assign 2 ack msgs with sqn number of ogm frame
             ack_msg2 = frames.OGM_ACK_msg
             ack_msg1.agg_sqn_no = frame.agg_sqn_no
             ack_msg2.agg_sqn_no = frame.agg_sqn_no
@@ -528,6 +511,7 @@ class orig_node:
             self.ogm_sqn_send = frame.agg_sqn_no
 
         return ack_msg1, ack_msg2
+
 
 
 # avl_tree blacklisted_tree
@@ -549,33 +533,45 @@ class ogm_aggreg_node:
     ogm_advs: list = field(default_factory=lambda: [])
 
     ogm_dest_field: list = field(default_factory=lambda: [])   # array[(OGM_DEST_ARRAY_BIT_SIZE/8)]  # store dests where ogm frame is supposed to be sent
-    #ogm_dest_bytes: int                # removed from original
+    #ogm_dest_bytes: int                        # removed from original
 
-    aggregated_msgs_sqn_no: int = 0    # originally aggregated_msgs # deviated from original
+    aggregated_msgs_sqn_no: int = 0             # originally aggregated_msgs # deviated from original
 
     sqn: int = 0  # AGGREG_SQN_T (8 bits)
-    #tx_attempt: int                    # removed from original
+    #tx_attempt: int                            # removed from original
     
-    def update_self(self, frame):       # initialize / update self after receiving ogm_adv frames
+    def update_self(self, frame):               # initialize / update self after receiving ogm_adv frames
         if type(frame) == frames.OGM_ADV:
             self.ogm_advs.append(frame)
 
-    def set_sqn_no_ogmframes_and_msgs(self):  # set aggregated seq no for ogm frame and sqn_no for msgs
-        for frame in self.ogm_advs:     # n^2 time complexity
+    def set_sqn_no_ogmframes_and_msgs(self):    # set aggregated seq no for ogm frame and sqn_no for msgs
+        for frame in self.ogm_advs:             # n^2 time complexity
             for msgs in frame.ogm_adv_msgs:
-                if msgs.ogm_sqn_no < 0:     # check if the msg has not yet been given a sqn number (-1 is default)
+                if msgs.ogm_sqn_no < 0:         # check if the msg has not yet been given a sqn number (-1 is default)
                     msgs.ogm_sqn_no = self.aggregated_msgs_sqn_no
                     self.aggregated_msgs_sqn_no += 1
 
                 else:
-                    continue    # if msgs already given a sqn number, ignore
+                    continue                    # if msgs already given a sqn number, ignore
             assert self.aggregated_msgs_sqn_no < 65536      # make sure sqn no for msgs doesnt exceed ogm sqn range size
 
-            if frame.agg_sqn_no < 0:   # check if the frame has not yet been given a sqn number (-1 is default)
+            if frame.agg_sqn_no < 0:            # check if the frame has not yet been given a sqn number (-1 is default)
                 frame.agg_sqn_no = self.sqn
                 self.sqn += 1
 
             else:
-                continue    # # if frame already given a sqn number, ignore
+                continue                        # # if frame already given a sqn number, ignore
+                
+    def set_iid_offset_for_ogm_msg(self, neighbor):   # initialize iid offset for msgs 
+        for frame in self.ogm_advs:
+            for msg in frame.ogm_adv_msgs:
+                if msg.iid_offset is None:      # ogm msg is in the originator, initialization # maybe change to < 0
+                    msg.iid_offset = 0
+                    iid = msg.iid_offset
+                else:
+                    neighiid = msg.iid_offset   # ogm msg contains iid of the originator
+                    iid = neighbor.get_myIID4x_by_neighIID4x(neighiid)
+                    msg.iid_offset = iid
 
+        return iid                              # store iid value to local node
                 
