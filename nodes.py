@@ -238,14 +238,14 @@ class metric_record:
 
 @dataclass
 class router_node:
-    local_key: local_node               # local_node
+    local_key: local_node = local_node()    # local_node
 
-    metric_red: metric_record
-    ogm_sqn_last: int                   # latest sqn number of ogm frame # default 0
-    ogm_umetric_last: int               # UMETRIC_T
+    metric_red: metric_record = metric_record()
+    ogm_sqn_last: int = -1                  # latest sqn number of ogm frame # default 0
+    ogm_umetric_last: int = -1              # UMETRIC_T
 
-    path_metric_best: int               # UMETRIC_T
-    path_linkdev_best: link_dev_node
+    path_metric_best: int = -1             # UMETRIC_T
+    path_linkdev_best: link_dev_node = link_dev_node()
 
     def update_self(self, frame):    # update fields upon receiving OGM_ADV # called everytime receives OGM ADV
         if type(frame) == frames.OGM_ADV:
