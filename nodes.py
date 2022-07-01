@@ -134,6 +134,8 @@ class dev_node:         # our own implementation
     channel: int = 0
     umetric_min: int = None
     umetric_max: int = None
+    fmu8_min: int = None
+    fmu8_max: int = None
 
 @dataclass
 class link_dev_key:
@@ -178,20 +180,9 @@ class lndev_probe_record:
             self.hello_sum = self.hello_sum + self.hello_array[(len(self.hello_array) - 1) - x]
         self.hello_umetric = (self.hello_sum/self.link_window) * 128849018880   # UMETRIC_MAX
 
-# # lndev_probe_record testing functions
-# lndev = lndev_probe_record(hello_array = deque(8*[0], 8), link_window = 4)
-# print(lndev.hello_array)
-# lndev.update_record(1)
-# lndev.update_record(1)
-# print(lndev.hello_array)
-# lndev.HELLO_received(3)
-# print(lndev.hello_array)
-# lndev.get_link_qual()
-# print(lndev.hello_umetric)
-
 @dataclass
 class link_dev_node:
-    # list_n: list = field(default_factory=lambda:[])                             # IRRELEVANT, just links it to the link_node's lndev_list
+    # list_n: list = field(default_factory=lambda:[])                             # UNUSED, just links it to the link_node's lndev_list
     key: link_dev_key = link_dev_key()                                          # holds information about the link and device
 
     tx_probe_umetric: int = 0                                                   # RP_ADV.rp_127range (UMETRIC_T)
@@ -199,7 +190,7 @@ class link_dev_node:
     rx_probe_record: lndev_probe_record = lndev_probe_record()                  # record that is used for link metric calculation
     timeaware_rx_probe: int = 0                                                 # rx_probe_record.hello_umetric which considers delay (UMETRIC_T) metrics.c
 
-    tx_task_lists: list = field(default_factory=lambda:[])                      # array of scheduled frames (list_head - array[FRAME_TYPE_ARRSZ])
+    # tx_task_lists: list = field(default_factory=lambda:[])                      # UNUSED, array of scheduled frames (list_head - array[FRAME_TYPE_ARRSZ])
     link_adv_msg: int = -1                                                      # frame counter of announced links (-1 if not announced)
     pkt_time_max: time = 0                                                      # timeout value for packets (TIME_T)
 

@@ -17,7 +17,7 @@ import nodes
 import frames
 # import miscellaneous
 
-# my_iid_repos = nodes.iid_repos()
+my_iid_repos = nodes.iid_repos()
 
 
 
@@ -39,25 +39,50 @@ packet2 = bmx.packet(head2, [hello_frame, rp_frame2])
 
 
 ## INITIALIZATION
+@dataclass
+class frame_handler:
+    hello_sqn: int = random.randint(0,65535)                    # add 1 every send of HELLO_ADV
+    dev_sqn: int = 1                                            # add 1 every send of DEV_ADV
+    link_sqn: int = 1                                           # add 1 every send of LINK_ADV
+    msg_index: int = 0                                          # serves as the index for LINK_ADV/RP_ADV ordering
 
-hello_sqn = random.randint(0,65535)     # add 1 every send of HELLO_ADV
-link_sqn = 1                            # add 1 every send of LINK_ADV
-dev_sqn = 1                             # add 1 every send of DEV_ADV
+    dev_req_ids: list = field(default_factory=lambda:[])        # list of ids to send DEV_REQs to
+    link_req_ids: list = field(default_factory=lambda:[])       # list of ids to send LINK_REQs to
+    link_msgs2send: list = field(default_factory=lambda:[])     # list of LINK_ADV msgs to send
+    dev_msgs2send: list = field(default_factory=lambda:[])      # list of DEV_ADV msgs to send
+    rp_msgs2send: list = field(default_factory=lambda:[])       # list of RP_ADV msgs to send
 
-frames2send = []                        # list of friends to be sent
-rp_msgs2send = []
-rp_msgs_index = 0
-# link_msgs2send = []
-# dev_msgs2send = []
+    frames2send: list = field(default_factory=lambda:[])        # list of friends to send
+
+    def reset(self):
+        self.msg_index = 0
+        self.dev_req_ids.clear()
+        self.link_req_ids.clear()
+        self.link_msgs2send.clear()
+        self.dev_msgs2send.clear()
+        self.rp_msgs2send.clear()
+        self.frames2send.clear()
+    
+    def iterate(self):
+        for frame in self.frames2send:    
+            if(type(frame) == frames.HELLO_ADV):    # HELLO_ADV
+                self.hello_sqn = self.hello_sqn + 1
+            elif(type(frame) == frames.DEV_ADV):    # DEV_ADV
+                self.dev_sqn = self.dev_sqn + 1
+            elif(type(frame) == frames.LINK_ADV):   # LINK_ADV
+                self.link_sqn = self.link_sqn + 1
+
+    def set_msg_index(self, value):
+        self.msg_index = value
+
+fhandler = frame_handler()
 
 local_ids = []                  # list of local_ids
 local_list = []                 # list of local_nodes
 link_keys = []                  # list of link_node_key
 link_list = []                  # list of link_nodes
-# link_dev_keys = []              # list of link_dev_keys
 link_dev_list = []              # list of link_dev_nodes
 dev_list = []                   # list of devices (includes loopback interface and inactive devices)
-# node_IIDs = []                # list of local_IIDs (can be substituted by however Geom does)
 
 def get_interfaces(iflist):
     dev_id = len(iflist)
@@ -131,24 +156,6 @@ def get_interfaces(iflist):
             return interface.mac                                        # use ethernet mac addr for local_id generation
     return -1
 
-def print_interfaces(iflist):
-    for x in iflist:
-        print(x.idx," - '",x.name,"':",sep='')
-        if(x.ipv4 is not None):
-            print("    IPv4:",'\t', x.ipv4)
-        if(x.ipv6 is not None):
-            print("    IPv6:",'\t', x.ipv6)
-        if(x.mac is not None):
-            print("    MAC:",'\t', x.mac)
-        print("    type:",'\t', x.type)
-        print("    active:",'\t', x.active)
-        print("    channel:",'\t', x.channel)
-        print("    umetric_min:", x.umetric_min)
-        print("    umetric_max:", x.umetric_max)
-        print("    fmu8_min:", x.fmu8_min)
-        print("    fmu8_max:", x.fmu8_max)
-    print()
-
 def local_id_gen(mac_addr):
     # | lid[0] | lid[1] | lid[2] | lid[3] |
     # | random | mac[3] | mac[4] | mac[5] |
@@ -181,10 +188,7 @@ main_local = nodes.local_node(local_id = 1)     # main local_node (node of itsel
 local_ids.append(loid)                          # store in global local_id list
 local_list.append(main_local)                   # store in global local_node list
 
-print_interfaces(dev_list)
-print(lomac)
-print(hex(loid))
-print("local_id =", loid,'\n')
+
 
 
 
@@ -208,8 +212,8 @@ def packet_received(self, ip6):
 
     # check if the local_node knows the link
     print("knows link?", check_if_exists(nodes.link_node_key(self.header.local_id, self.header.dev_idx), link_keys))
-    print("comparison:", nodes.link_node_key(self.header.local_id, self.header.dev_idx))
-    print("link_keys:", link_keys)
+    print("search for:", nodes.link_node_key(self.header.local_id, self.header.dev_idx))
+    print("link_keys:", link_keys, '\n')
 
     if(check_if_exists(nodes.link_node_key(self.header.local_id, self.header.dev_idx), link_keys) == -1):
         # add the new link to the main local_node
@@ -305,8 +309,7 @@ def packet_received(self, ip6):
         main_local.best_linkdev = []
 
 
-    ## FRAME SENDING
-    # frame headers are to be set later
+    ## FRAME SENDING (frame headers are to be set later)
 
     # check if DEV_REQ IS NEEDED 
     if(main_local.link_adv_dev_sqn_ref > main_local.dev_adv_sqn):
@@ -324,101 +327,157 @@ def packet_received(self, ip6):
     else:
         outdated_link = -1
 
-
-
-
     # NON-PERIODICAL
-
     if(main_local.link_tree and (outdated_dev == 1)):
-        frames2send.append(frames.DEV_REQ(                      #### DEV_REQ
-                            frm_header=frames.header(0,0,0,0),
-                            dest_local_id=self.header.local_id))    # uint32_t (0 - 4294967295)
-        # ADD: unsolicited DEV_ADV after done with format below
-    elif(main_local.link_tree and (dev_req == 1)): # ADD: or ifdev_list changed after calling get_interfaces
-        global dev_sqn
-        devs = []                                               #### DEV_ADV
-        for dev in dev_list:
+        fhandler.dev_req_ids.append(self.header.local_id)       #### DEV_REQ 
+        for dev in dev_list:                                    #### DEV_ADV
             if((dev.type != 0) and (dev.active == 1)):
                 mac_converted = int(dev.mac[0]+dev.mac[1]+dev.mac[3]+dev.mac[4]+dev.mac[6]+dev.mac[7]+dev.mac[9]+dev.mac[10]+dev.mac[12]+dev.mac[13]+dev.mac[15]+dev.mac[16], 16)
-                devs.append(frames.DEV_ADV_msg(
+                fhandler.dev_msgs2send.append(frames.DEV_ADV_msg(
                                 dev_index=dev.idx,                  # uint8_t (0 - 255)
                                 channel=dev.channel,                # uint8_t (0 - 255)
-                                trans_bitrate_min=dev.fmu8_min,     # FMETRIC_U8_T  # TO-DO
-                                trans_bitrate_max=dev.fmu8_max,     # FMETRIC_U8_T  # TO-DO
+                                trans_bitrate_min=dev.fmu8_min,     # FMETRIC_U8_T
+                                trans_bitrate_max=dev.fmu8_max,     # FMETRIC_U8_T
                                 local_ipv6=int(dev.ipv6),           # int (hex)
                                 mac_address=mac_converted           # int (hex)
                                 ))
-        frames2send.append(frames.DEV_ADV(
-                            frm_header=frames.header(0,0,0,0),
-                            dev_sqn_no=dev_sqn,                     # uint16_t (0 - 65535)
-                            dev_msgs=devs
-                            ))
-        dev_sqn = dev_sqn + 1
-
+    elif(main_local.link_tree and (dev_req == 1)):      # ADD: or if dev_list changed after calling get_interfaces
+        for dev in dev_list:                                    #### DEV_ADV
+            if((dev.type != 0) and (dev.active == 1)):
+                mac_converted = int(dev.mac[0]+dev.mac[1]+dev.mac[3]+dev.mac[4]+dev.mac[6]+dev.mac[7]+dev.mac[9]+dev.mac[10]+dev.mac[12]+dev.mac[13]+dev.mac[15]+dev.mac[16], 16)
+                fhandler.dev_msgs2send.append(frames.DEV_ADV_msg(
+                                dev_index=dev.idx,                  # uint8_t (0 - 255)
+                                channel=dev.channel,                # uint8_t (0 - 255)
+                                trans_bitrate_min=dev.fmu8_min,     # FMETRIC_U8_T
+                                trans_bitrate_max=dev.fmu8_max,     # FMETRIC_U8_T
+                                local_ipv6=int(dev.ipv6),           # int (hex)
+                                mac_address=mac_converted           # int (hex)
+                                ))
 
     if(main_local.link_tree and (outdated_link == 1)):
-        global link_sqn
-        frames2send.append(frames.LINK_REQ(                     #### LINK_REQ
-                            frm_header=frames.header(0,0,0,0),
-                            dest_local_id=self.header.local_id))
-        links = []                                              #### LINK_ADV (unsolicited)
+        fhandler.link_req_ids.append(self.header.local_id)      #### LINK_REQ
+        index = fhandler.msg_index                              #### LINK_ADV (unsolicited)
         for lndev in link_dev_list:
-            links.append(frames.LINK_ADV_msg(
+            if(lndev.key.dev.active == 1):
+                fhandler.link_msgs2send.append(frames.LINK_ADV_msg(
                                 trans_dev_index=lndev.key.dev.idx,  # uint8_t (0 - 255)
                                 peer_dev_index=self.header.dev_idx, # uint8_t (0 - 255)
                                 peer_local_id=self.header.local_id  # uint32_t (0 - 4294967295)
                                 ))
-        frames2send.append(frames.LINK_ADV(
-                            frm_header=frames.header(0,0,0,0),
-                            dev_sqn_no_ref=main_local.dev_adv_sqn,  # uint16_t (0 - 65535)
-                            link_msgs=links
-                            ))
-        link_sqn = link_sqn + 1
+                lndev.link_adv_msg = index
+                index = index + 1
+        fhandler.set_msg_index(index)
     elif(main_local.link_tree and (outdated_dev == 0) and (link_req == 1)):
-        links = []                                              #### LINK_ADV
+        index = fhandler.msg_index                              #### LINK_ADV
         for lndev in link_dev_list:
-            links.append(frames.LINK_ADV_msg(
+            if(lndev.key.dev.active == 1):
+                fhandler.link_msgs2send.append(frames.LINK_ADV_msg(
                                 trans_dev_index=lndev.key.dev.idx,  # uint8_t (0 - 255)
                                 peer_dev_index=self.header.dev_idx, # uint8_t (0 - 255)
                                 peer_local_id=self.header.local_id  # uint32_t (0 - 4294967295)
                                 ))
-        frames2send.append(frames.LINK_ADV(
-                            frm_header=frames.header(0,0,0,0),
-                            dev_sqn_no_ref=main_local.dev_adv_sqn,  # uint16_t (0 - 65535)
-                            link_msgs=links
-                            ))
-        link_sqn = link_sqn + 1
-
+                lndev.link_adv_msg = index
+                index = index + 1
+        fhandler.set_msg_index(index)
 
     # PERIODICAL
     if(main_local.link_tree and (outdated_dev == 0) and (outdated_link == 0)):
-        for lndev in link_dev_list:                             #### RP_ADV
-            rp_127_converted = round((lndev.timeaware_tx_probe * 127) / 128849018880)    # UMETRIC_MAX
-            rp_msgs2send.append(frames.RP_ADV_msg(
+        for lndev in link_dev_list:
+            if(lndev.key.dev.active == 1):                      #### RP_ADV
+                rp_127_converted = round((lndev.timeaware_tx_probe * 127) / 128849018880)    # UMETRIC_MAX
+                fhandler.rp_msgs2send.append(frames.RP_ADV_msg(
                                 rp_127range=rp_127_converted,       # 7 bits (0 - 127)
                                 ogm_req=0                           # 1 bit (0 / 1) (HAROLD)
                                 ))
 
 
-# PERIODICAL (every 500ms)
-frames2send.append(frames.HELLO_ADV(                            #### HELLO_ADV
-                            frm_header=frames.header(0,0,0,0),  
-                            HELLO_sqn_no=hello_sqn))                # uint16_t (0 - 65535)
-hello_sqn = hello_sqn + 1
+def form_frames2send_list(frame_handler):
 
-if main_local.link_tree:    # send only if the node has links
-    frames2send.append(frames.RP_ADV(                           #### RP_ADV
+    # PERIODICAL (every 500ms)
+    frame_handler.frames2send.append(frames.HELLO_ADV(          #### HELLO_ADV
                             frm_header=frames.header(0,0,0,0),  
-                            rp_msgs=rp_msgs2send))
+                            HELLO_sqn_no=frame_handler.hello_sqn    # uint16_t (0 - 65535)
+                            ))
+    if frame_handler.rp_msgs2send:                              #### RP_ADV
+        frame_handler.frames2send.append(frames.RP_ADV(
+                            frm_header=frames.header(0,0,0,0),  
+                            rp_msgs=frame_handler.rp_msgs2send
+                            ))
 
-## AFTER SENDING
-# rp_msgs2send.clear()
-# link_msgs2send.clear()
-# dev_msgs2send.clear()
+    # NON-PERIODICAL
+    if frame_handler.dev_req_ids:                               #### DEV_REQ
+        for dev_req_id in frame_handler.dev_req_ids:
+            frame_handler.frames2send.append(frames.DEV_REQ(
+                            frm_header=frames.header(0,0,0,0),
+                            dest_local_id=dev_req_id                # uint32_t (0 - 4294967295)
+                            ))
+    if frame_handler.dev_msgs2send:                             #### DEV_ADV
+        frame_handler.frames2send.append(frames.DEV_ADV(
+                            frm_header=frames.header(0,0,0,0),
+                            dev_sqn_no=frame_handler.dev_sqn,       # uint16_t (0 - 65535)
+                            dev_msgs=frame_handler.dev_msgs2send
+                            ))
+
+    if frame_handler.link_msgs2send:                            #### LINK_REQ
+        for link_req_id in frame_handler.link_req_ids:
+            frame_handler.frames2send.append(frames.LINK_REQ(
+                            frm_header=frames.header(0,0,0,0),
+                            dest_local_id=link_req_id               # uint32_t (0 - 4294967295)
+                            ))
+    if frame_handler.link_msgs2send:                            #### LINK_ADV
+        frame_handler.frames2send.append(frames.LINK_ADV(
+                            frm_header=frames.header(0,0,0,0),
+                            dev_sqn_no_ref=main_local.dev_adv_sqn,  # uint16_t (0 - 65535)
+                            link_msgs=frame_handler.link_msgs2send
+                            ))
+
+################################################################
+#########   COMPLETE FRAME HEADERS AND PACKET HEADER   #########
+################################################################
+# packer_header.bmx_version = ???
+# packer_header.reserved = ???
+# packer_header.pkt_len = (TRISTAN)
+# packer_header.transmitterIID = ???
+# packer_header.link_adv_sqn = fhandler.link_sqn
+# packer_header.pkt_sqn = (TRISTAN)
+# packer_header.local_id = main_local.local_id
+# packer_header.dev_idx = main_local.best_tp_linkdev.key.dev.idx
+
+
+################################################################
+####################   CALL SEND FUNCTION   ####################
+################################################################
+
+# send(packet(header=packet_header, frames=fhandler.frames2send))
+
+
+################################################################
+####################   CALL AFTER SENDING   ####################
+################################################################
+# fhandler.iterate()    # iterates all sqn that were sent
+# fhandler.reset()      # empties lists to be sent
 
 
     
 ## DEBUGGING
+
+def print_interfaces(iflist):
+    for x in iflist:
+        print(x.idx," - '",x.name,"':",sep='')
+        if(x.ipv4 is not None):
+            print("    IPv4:",'\t', x.ipv4)
+        if(x.ipv6 is not None):
+            print("    IPv6:",'\t', x.ipv6)
+        if(x.mac is not None):
+            print("    MAC:",'\t', x.mac)
+        print("    type:",'\t', x.type)
+        print("    active:",'\t', x.active)
+        print("    channel:",'\t', x.channel)
+        print("    umetric_min:", x.umetric_min)
+        print("    umetric_max:", x.umetric_max)
+        print("    fmu8_min:", x.fmu8_min)
+        print("    fmu8_max:", x.fmu8_max)
+    print()
 
 def print_all(nodes):
     print("ALL NODES")
@@ -440,7 +499,7 @@ def print_all(nodes):
             i3 = 1
             for lndev in link.lndev_list:
                 print('\t\t\t\t\t\t', "link_dev_node", i3, ":")
-                # print('\t\t\t\t\t\t', "    list_n = [...]")             # not needed
+                # print('\t\t\t\t\t\t', "    list_n = [...]")           # UNUSED
                 print('\t\t\t\t\t\t', "    key:")           # dev node will add another level of depth
                 print('\t\t\t\t\t\t\t', "link_node =", link.key)
                 print('\t\t\t\t\t\t\t', "dev_node: ")
@@ -463,7 +522,7 @@ def print_all(nodes):
                 print('\t\t\t\t\t\t\t', "hello_umetric =", lndev.rx_probe_record.hello_umetric)
                 print('\t\t\t\t\t\t\t', "hello_time_max =", lndev.rx_probe_record.hello_time_max)
                 print('\t\t\t\t\t\t', "    timeaware_rx_probe =", lndev.timeaware_rx_probe)
-                print('\t\t\t\t\t\t', "    tx_task_lists = []")
+                # print('\t\t\t\t\t\t', "    tx_task_lists = []")       # UNUSED
                 print('\t\t\t\t\t\t', "    link_adv_msg =", lndev.link_adv_msg)
                 print('\t\t\t\t\t\t', "    pkt_time_max:", lndev.pkt_time_max)
                 i3 = i3 + 1
@@ -503,10 +562,10 @@ def print_all(nodes):
         print()
 
 def print_frames(frame_list):
-    i1 = 1
+    i1 = 0
     print("FRAMES TO SEND:")
     for frame in frame_list:
-        i2 = 1
+        i2 = 0
         print("[", i1, "]  ", sep="", end='')
         if(type(frame) == frames.LINK_ADV):     # LINK_ADV
             print("LINK_ADV(frm_header=",frame.frm_header,", dev_sqn_no_ref=", frame.dev_sqn_no_ref, ", link_msgs:",sep="")
@@ -530,15 +589,28 @@ def print_frames(frame_list):
         elif(type(frame) == frames.HELLO_ADV):  # HELLO_ADV
             print(frame)
         i1 = i1 + 1
+    print()
 
 
 ## TESTING
 
+# check if initialized properly
+print_interfaces(dev_list)
+print(lomac)
+print(hex(loid))
+print("local_id =", loid,'\n')
+
+# check if the receive packet fills the data properly
 packet_received(packet, '::1')
-print_all(local_list)
-print_frames(frames2send)
 # packet_received(packet2, '::1')
-# print_all(local_list)
-# print(local_ids)
-# print(link_keys)
-# print(link_list)
+print_all(local_list)
+
+# check if the correct frames are lined up for sending
+form_frames2send_list(fhandler)
+print_frames(fhandler.frames2send)
+
+# check if fhandler is cleared and the sqn are iterated
+# print(fhandler,'\n')
+# fhandler.iterate()
+# fhandler.reset()
+# print(fhandler, '\n')
