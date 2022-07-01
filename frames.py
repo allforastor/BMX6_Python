@@ -38,12 +38,12 @@ class long_header:
 @dataclass
 class HELLO_ADV:
     frm_header: header
-    HELLO_sqn_no: int                   # sqn used for link metric calculation
+    HELLO_sqn_no: int           # uint16_t (0 - 65535)          # sqn used for link metric calculation
 
 @dataclass
 class RP_ADV_msg:
-    rp_127range: int                    # report of the number of HELLO_ADV frames received
-    ogm_req: int                        # set to 1 if it wants to receive OGMs from the RP_ADV receiver
+    rp_127range: int            # 7 bits (0 - 127)              # report of the number of HELLO_ADV frames received
+    ogm_req: int                # 1 bit (0 / 1)                 # set to 1 if it wants to receive OGMs from the RP_ADV receiver
 
 @dataclass
 class RP_ADV:
@@ -120,40 +120,40 @@ class OGM_ACK_msg:
     agg_sqn_no: int = -1
     
 @dataclass
-class OGM_ACK:                          # sent twice by default  # only ack nodes who requested ogm frame
+class OGM_ACK:                         # sent twice by default  # only ack nodes who requested ogm frame
     frm_header: header
     ogm_ack_msgs: list = field(default_factory=lambda: [])
 
 @dataclass
 class LINK_REQ:
     frm_header: header
-    dest_local_id: int                  # indicates which neighbor has to answer the LINK_REQ
+    dest_local_id: int          # uint32_t (0 - 4294967295)     # indicates which neighbor has to answer the LINK_REQ
 
 @dataclass
 class LINK_ADV_msg:
-    trans_dev_index: int                # device index of the sending node
-    peer_dev_index: int                 # device index of the receiving node
-    peer_local_id: int                  # local id of the receiving node
+    trans_dev_index: int        # uint8_t (0 - 255)             # device index of the sending node
+    peer_dev_index: int         # uint8_t (0 - 255)             # device index of the receiving node
+    peer_local_id: int          # uint32_t (0 - 4294967295)     # local id of the receiving node
 
 @dataclass
 class LINK_ADV:
     frm_header: header
-    dev_sqn_no_ref: int                 # sqn of the DEV_ADV related to this LINK_ADV
+    dev_sqn_no_ref: int         # uint16_t (0 - 65535)          # sqn of the DEV_ADV related to this LINK_ADV
     link_msgs: list[LINK_ADV_msg]
 
 @dataclass
 class DEV_REQ:
     frm_header: header
-    dest_local_id: int
+    dest_local_id: int          # uint32_t (0 - 4294967295)
 
 @dataclass
 class DEV_ADV_msg:
-    dev_index: int
-    channel: int
-    trans_bitrate_min: int
-    trans_bitrate_max: int
-    local_ipv6: int
-    mac_address: int
+    dev_index: int              # uint8_t (0 - 255)
+    channel: int                # uint8_t (0 - 255)
+    trans_bitrate_min: int      # FMETRIC_U8_T      
+    trans_bitrate_max: int      # FMETRIC_U8_T 
+    local_ipv6: int             # 16 bytes (hex)
+    mac_address: int            # 6 bytes (hex)
         
     #local ipv6 and mac address is in hex form
     def get_local_ipv6(self):  #gets the ipv6 address of the device
@@ -180,7 +180,7 @@ class DEV_ADV_msg:
 @dataclass
 class DEV_ADV:
     frm_header: header
-    dev_sqn_no: int
+    dev_sqn_no: int             # uint16_t (0 - 65535)
     dev_msgs: list[DEV_ADV_msg]
 
 @dataclass

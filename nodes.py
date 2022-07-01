@@ -26,19 +26,19 @@ class local_node:
 
     packet_sqn: int = -1                                                        # PKT_SQN_T
     packet_time: time = 0                                                       # TIME_T
-    packet_link_sqn_ref: int = -1                                               # LINKADV_SQN_T (0 - 255)(frames.LINK_ADV.dev_sqn_no_ref)
+    packet_link_sqn_ref: int = 0                                                # LINKADV_SQN_T (0 - 255)(frames.LINK_ADV.dev_sqn_no_ref)
 
     # from the latest LINK_ADV
-    link_adv_sqn: int = -1                                                      # sqn of the latest LINK_ADV (LINKADV_SQN_T (0 - 255)(frames.LINK_ADV.dev_sqn_no_ref)
+    link_adv_sqn: int = 0                                                       # sqn of the latest LINK_ADV (LINKADV_SQN_T (0 - 255)(frames.LINK_ADV.dev_sqn_no_ref)
     link_adv_time: time = 0                                                     # time of the latest LINK_ADV frame (TIME_T)
     link_adv_msgs: int = -1                                                     # number of msgs in the LINK_ADV frame
     link_adv_msg_for_me: int = -1                                               # index of the msg for this node
     link_adv_msg_for_him: int = -1                                              # index of msg for the other node
     link_adv: list = field(default_factory=lambda:[])                           # msg_link_adv (frames.LINK_ADV)
-    link_adv_dev_sqn_ref: int = -1                                              # DEVADV_SQN_T (0 - 255)(frames.DEV_ADV.dev_sqn_np)
+    link_adv_dev_sqn_ref: int = 0                                               # DEVADV_SQN_T (0 - 255)(frames.DEV_ADV.dev_sqn_np)
 
     # from the latest DEV_ADV
-    dev_adv_sqn: int = -1                                                       # sqn of the latest DEV_ADV (DEVADV_SQN_T (0 - 255)(frames.DEV_ADV.dev_sqn_np))
+    dev_adv_sqn: int = 0                                                        # sqn of the latest DEV_ADV (DEVADV_SQN_T (0 - 255)(frames.DEV_ADV.dev_sqn_np))
     dev_adv_msgs: int = -1                                                      # number of msgs in the DEV_ADV frame
     dev_adv: list = field(default_factory=lambda:[])                            # msg_dev_adv (frames.DEV_ADV)
 
@@ -60,7 +60,6 @@ class local_node:
                         lndev.pkt_time_max = self.packet_time
 
     def link_adv_received(self, frame):
-        # LOCAL_NODE
         self.link_adv_sqn = self.packet_link_sqn_ref
         self.link_adv_time = self.packet_time
         self.link_adv_msgs = 0
@@ -75,12 +74,6 @@ class local_node:
         # self.link_adv_msg_for_him = 0   # SET THIS WHEN SENDING
         self.link_adv_dev_sqn_ref = frame.dev_sqn_no_ref
 
-
-    def link_req_received(self, frame):
-        if(frame.dest_local_id == self.local_id):
-            return 1
-        return 0
-
     def dev_adv_received(self, frame):
         self.dev_adv_sqn = frame.dev_sqn_no
         self.dev_adv_msgs = 0
@@ -94,20 +87,15 @@ class local_node:
             return 1
         return 0 
         
+    def link_req_received(self, frame):
+        if(frame.dest_local_id == self.local_id):
+            return 1
+        return 0
+
     def rp_adv_received(self, frame):
         self.rp_adv_time = self.packet_time
         self.rp_ogm_request_received = 0    # (HAROLD)
         self.orig_routes = 0                # (HAROLD)
-
-        # LINK_NODE, LINK_NODE_KEY
-        # update tx values
-        # call lndev assign best lndev (only best tx will be altered)
-
-    def hello_adv_received(self, frame):
-        # LINK_NODES
-        # update rx values (lndev probe record)
-        # call lndev assign best lndev (only best rx will be altered)
-        pass
 
 @dataclass
 class link_node_key:

@@ -2,6 +2,12 @@ from ctypes import sizeof
 from dataclasses import dataclass, field
 import sys
 import time
+import ipaddress
+import random
+
+from scipy import rand
+
+## DATACLASSES
 
 # @dataclass
 # class header:
@@ -59,21 +65,27 @@ import time
 # print("updated RP_ADV frame after changing frame header:")
 # print(rp)                   # prints the entire frame
 
-# pointer workaround
 
-start_time = time.perf_counter()
-print(start_time)
 
-@dataclass
-class big:
-    smaller: list = field(default_factory=lambda:[])
-    # smallest: list = []
+## GET TIME
 
-@dataclass
-class small:
-    bigger: big
-    id: int = 0
-    name: str = "small"
+# start_time = time.perf_counter()
+# print(start_time)
+
+
+
+## POINTER WORKAROUND
+
+# @dataclass
+# class big:
+#     smaller: list = field(default_factory=lambda:[])
+#     # smallest: list = []
+
+# @dataclass
+# class small:
+#     bigger: big
+#     id: int = 0
+#     name: str = "small"
 
 #     def __post_init__(self):
 #         self.name = self.name+str(self.id)
@@ -87,33 +99,33 @@ class small:
 #     def __post_init__(self):
 #         self.name = self.name+str(self.count)
 
-big_class = big()
-small_class1 = small(big_class, 1)
+# big_class = big()
+# small_class1 = small(big_class, 1)
 # s1 = s(big_class, 1)
 # s1 = s([], 1)
 
-print("BIG:\t", big_class)
-print("SMALL:\t", small_class1)
+# print("BIG:\t", big_class)
+# print("SMALL:\t", small_class1)
 # print("S:\t", s1)
 
 # # print(sys.getsizeof(big_class))
 # # print(sys.getsizeof(small_class))
 
-big_class.smaller.append(small_class1)
+# big_class.smaller.append(small_class1)
 # big_class.smallest.append(s1)
 # s1.bigger.append(big_class)
 
-print("BIG:\t", big_class)
-print("SMALL:\t", small_class1)
+# print("BIG:\t", big_class)
+# print("SMALL:\t", small_class1)
 # print("S:\t", s1)
 
-small_class2 = small(big_class, 2)
-big_class.smaller.append(small_class2)
+# small_class2 = small(big_class, 2)
+# big_class.smaller.append(small_class2)
 # # print(sys.getsizeof(big_class))
 # # print(sys.getsizeof(small_class))
 
-print("BIG:\t", big_class)
-print("SMALL:\t", small_class1)
+# print("BIG:\t", big_class)
+# print("SMALL:\t", small_class1)
 # print("SMALL:\t", small_class2)
 
 # small_class3 = small(big_class, 3)
@@ -121,30 +133,29 @@ print("SMALL:\t", small_class1)
 
 # # print("BIG:\t", big_class)
 
-def print_big(big): 
-    print("Printing smaller objects:")
-    for x in big.smaller:
-        print(x.bigger)
+# def print_big(big): 
+#     print("Printing smaller objects:")
+#     for x in big.smaller:
+#         print(x.bigger)
         # print(x.bigger)
 
 # # print("SMALL:\t", small_class1)
 # # print("SMALL:\t", small_class2)
 # print("SMALL:\t", small_class3)
 # print("BIG:\t", big_class)
-print_big(big_class)
-print("SMALL:\t", small_class1)
-l = list([big_class, small_class1, small_class2])
-print(l)
+# print_big(big_class)
+# print("SMALL:\t", small_class1)
+# l = list([big_class, small_class1, small_class2])
+# print(l)
 
 # print(sys.getsizeof(big_class))
 # print(sys.getsizeof(small_class1))
 # print(sys.getsizeof(small_class2))
 # print(sys.getsizeof(small_class3))
 
-# x = int(10)
-# print(type(x))
-# if(type(x) == int):
-#     print("Wow, it's an int!")
+
+
+## TIME TESTING
 
 # time.sleep(1)
 # end_time = time.perf_counter()
@@ -153,35 +164,97 @@ print(l)
 # print(elapsed)
 
 
-OGM_EXPONENT_OFFSET = 5
-OGM_EXPONENT_MAX = ((1 << 5) - 1)
-# 11111
-FM8_MANTISSA_BIT_SIZE = 8 - 5
-FM8_MANTISSA_MASK = ((1 << FM8_MANTISSA_BIT_SIZE) - 1)
-# 111
-UMETRIC_MAX = (((1) << (OGM_EXPONENT_OFFSET + OGM_EXPONENT_MAX)) + ((FM8_MANTISSA_MASK) << ((OGM_EXPONENT_OFFSET+OGM_EXPONENT_MAX)-FM8_MANTISSA_BIT_SIZE)))
-# [1 << 36] + [111 << 33]
-# 68719476736 + 60129542144
-print("UMETRIC_MAX: ",UMETRIC_MAX)
-i = UMETRIC_MAX/111
-print(int(i))
 
-@dataclass
-class x:
-    l : list = field(default_factory=lambda:[])
+## GETTING UMETRIC_MAX
 
-    def app(self, lis):
-        self.l[0].append(lis)
-
-local_x = x([])
-local_y = x([])
-numlist = [1,2,3]
-local_x.l.append(numlist)
-local_x.l.append(numlist)
-print("x:",local_x.l,'\t',"y:",local_y.l)
-local_x.l[0].append(4)
-print("x:",local_x.l,'\t',"y:",local_y.l)
-local_x.app(5)
-print("x:",local_x.l,'\t',"y:",local_y.l)
+# OGM_EXPONENT_OFFSET = 5
+# OGM_EXPONENT_MAX = ((1 << 5) - 1)
+# # 11111
+# FM8_MANTISSA_BIT_SIZE = 8 - 5
+# FM8_MANTISSA_MASK = ((1 << FM8_MANTISSA_BIT_SIZE) - 1)
+# # 111
+# UMETRIC_MAX = (((1) << (OGM_EXPONENT_OFFSET + OGM_EXPONENT_MAX)) + ((FM8_MANTISSA_MASK) << ((OGM_EXPONENT_OFFSET+OGM_EXPONENT_MAX)-FM8_MANTISSA_BIT_SIZE)))
+# # [1 << 36] + [111 << 33]
+# # 68719476736 + 60129542144
+# print("UMETRIC_MAX: ",UMETRIC_MAX)
+# i = UMETRIC_MAX/111
+# print(int(i))
 
 
+
+## CHECKING HOW LIST ELEMENTS ARE AFFECTED
+
+# @dataclass
+# class x:
+#     l : list = field(default_factory=lambda:[])
+
+#     def app(self, lis):
+#         self.l[0].append(lis)
+
+# local_x = x([])
+# local_y = x([])
+# numlist = [1,2,3]
+# local_x.l.append(numlist)
+# local_x.l.append(numlist)
+# print("x:",local_x.l,'\t',"y:",local_y.l)
+# local_x.l[0].append(4)
+# print("x:",local_x.l,'\t',"y:",local_y.l)
+# local_x.app(5)
+# print("x:",local_x.l,'\t',"y:",local_y.l)
+
+
+
+## TEST IPV6
+
+# @dataclass
+# class node:                      # holds information about the other node
+#     ip: ipaddress.ip_address = ipaddress.ip_address('0.0.0.0')    
+
+# addr = '::1'
+# test_node = node(ipaddress.ip_address(addr))
+# print(test_node)
+# print(type(test_node.ip))
+# print(hex(int(test_node.ip)))
+# print(sizeof(hex(1)))
+
+
+## TEST RANDOM
+
+# randy = random.randint(0,100)
+# print(randy)
+# randy = randy + 1
+# print(randy)
+
+
+## TEST APPEND
+
+# @dataclass
+# class no_holder:
+#     numlist: list
+#     num: int
+
+# no = 24
+# nolist = [0,2,4]
+# frames = []
+# frames.append(no_holder(numlist = nolist, num = no))
+# print(nolist)
+# print(frames)
+# no = 34
+# nolist.clear()
+# print(nolist)
+# print(frames)
+
+
+## TEST MAC CONVERSION
+
+mac = "AB:CD:EF:12:34:56"
+mac_converted = int(mac[0]+mac[1], 16) << 8
+mac_converted = mac_converted + int(mac[3]+mac[4], 16) << 8
+mac_converted = mac_converted + int(mac[6]+mac[7], 16) << 8
+mac_converted = mac_converted + int(mac[9]+mac[10], 16) << 8
+mac_converted = mac_converted + int(mac[12]+mac[13], 16) << 8
+mac_converted = mac_converted + int(mac[15]+mac[16], 16)
+
+mac_converted2 = int(mac[0]+mac[1]+mac[3]+mac[4]+mac[6]+mac[7]+mac[9]+mac[10]+mac[12]+mac[13]+mac[15]+mac[16], 16)
+print(mac_converted)
+print(mac_converted2)

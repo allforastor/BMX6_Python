@@ -1,4 +1,5 @@
 import ipaddress
+from os import link
 from pickle import TRUE
 import time
 from sys import getsizeof
@@ -18,6 +19,8 @@ import frames
 
 my_iid_repos = nodes.iid_repos()
 
+
+
 ## TEST VALUES
 fhead = frames.header(0,0,0,0)
 ln_msg = frames.LINK_ADV_msg(1,1,1)
@@ -33,7 +36,18 @@ packet = bmx.packet(head, [ln_frame, hello_frame, rp_frame])
 packet2 = bmx.packet(head2, [hello_frame, rp_frame2])
 
 
+
 ## INITIALIZATION
+
+hello_sqn = random.randint(0,65535)     # add 1 every send of HELLO_ADV
+link_sqn = 1                            # add 1 every send of LINK_ADV
+dev_sqn = 1                             # add 1 every send of DEV_ADV
+
+frames2send = []                        # list of friends to be sent
+rp_msgs2send = []
+rp_msgs_index = 0
+# link_msgs2send = []
+# dev_msgs2send = []
 
 local_ids = []                  # list of local_ids
 local_list = []                 # list of local_nodes
@@ -164,6 +178,7 @@ print(hex(loid))
 print("local_id =", loid,'\n')
 
 
+
 ## PACKET HANDLING
 
 def packet_received(self, ip6):
@@ -190,7 +205,7 @@ def packet_received(self, ip6):
     if(check_if_exists(nodes.link_node_key(self.header.local_id, self.header.dev_idx), link_keys) == -1):
         # add the new link to the main local_node
         ln_key = nodes.link_node_key(self.header.local_id, self.header.dev_idx)
-        ln = nodes.link_node(local = local_list[check_if_exists(self.header.local_id, local_ids)], key = ln_key, link_ip = ip6)
+        ln = nodes.link_node(local = local_list[check_if_exists(self.header.local_id, local_ids)], key = ln_key, link_ip = ipaddress.ip_address(ip6))
         main_local.link_tree.append(ln)                                                     # add link to the main node
         local_list[check_if_exists(self.header.local_id, local_ids)].link_tree.append(ln)   # add link to the new node
 
@@ -227,7 +242,7 @@ def packet_received(self, ip6):
     ## FRAME ITERATION
     link_req = 0    # set to 1 if a REQ must be sent
     dev_req = 0     # set to 1 if a REQ must be sent
-    rp = []         # holds rp_adv messages
+    rp_msgs = []         # holds rp_adv messages
     for frame in self.frames:
         if(type(frame) == frames.LINK_ADV):     # LINK_ADV
             main_local.link_adv_received(frame)
@@ -255,7 +270,7 @@ def packet_received(self, ip6):
             if(link_msg.peer_local_id == main_local.local_id):
                 for lndev in link_list[link_index].lndev_list:
                     if((link_msg.peer_dev_index == lndev.key.dev.idx) and (lndev.key.dev.active == 1)):
-                        lndev.tx_probe_umetric = rp[rp_index].rp_127range
+                        lndev.tx_probe_umetric = (rp[rp_index].rp_127range / 127) * 128849018880    # UMETRIC_MAX
             rp_index = rp_index + 1
 
     # obtain timeaware tx/rx values and update best linkdevs
@@ -281,40 +296,116 @@ def packet_received(self, ip6):
         main_local.best_linkdev = []
 
 
-    ## FRAMES TO BE SENT
-    frames2send = []
+    ## FRAME SENDING
+    # frame headers are to be set later
+
+    # check if DEV_REQ IS NEEDED 
+    if(main_local.link_adv_dev_sqn_ref > main_local.dev_adv_sqn):
+        outdated_dev = 1                       # set to 1 if dev is outdated
+    elif(main_local.link_adv_dev_sqn_ref == main_local.dev_adv_sqn):
+        outdated_dev = 0                       # set to 0 if dev is updated
+    else:
+        outdated_dev = -1
+
+    # check if LINK_REQ IS NEEDED 
+    if(main_local.packet_link_sqn_number > main_local.link_adv_sqn):
+        outdated_link = 1                       # set to 1 if link is outdated
+    elif(main_local.packet_link_sqn_number == main_local.link_adv_sqn):
+        outdated_link = 0                       # set to 0 if link is updated
+    else:
+        outdated_link = -1
+
+
+
+
+    # NON-PERIODICAL
+
+    if(main_local.link_tree and (outdated_dev == 1)):
+        frames2send.append(frames.DEV_REQ(                      #### DEV_REQ
+                            frm_header=frames.header(0,0,0,0),
+                            dest_local_id=self.header.local_id))    # uint32_t (0 - 4294967295)
+        # ADD: unsolicited DEV_ADV after done with format below
+    elif(main_local.link_tree and (dev_req == 1)): # ADD: or ifdev_list changed after calling get_interfaces
+        devs = []                                               #### DEV_ADV
+        for dev in dev_list:
+            if((dev.type != 0) and (dev.active == 1)):
+                mac_converted = int(dev.mac[0]+dev.mac[1]+dev.mac[3]+dev.mac[4]+dev.mac[6]+dev.mac[7]+dev.mac[9]+dev.mac[10]+dev.mac[12]+dev.mac[13]+dev.mac[15]+dev.mac[16], 16)
+                devs.append(frames.DEV_ADV_msg(
+                                dev_index=dev.idx,                  # uint8_t (0 - 255)
+                                channel=dev.channel,                # uint8_t (0 - 255)
+                                trans_bitrate_min=dev.umetric_min,  # FMETRIC_U8_T  # TO-DO
+                                trans_bitrate_max=dev.umetric_max,  # FMETRIC_U8_T  # TO-DO
+                                local_ipv6=int(dev.ipv6),           # int (hex)
+                                mac_address=mac_converted           # int (hex)
+                                ))
+        frames2send.append(frames.DEV_ADV(
+                            frm_header=frames.header(0,0,0,0),
+                            dev_sqn_no=dev_sqn,                     # uint16_t (0 - 65535)
+                            dev_msgs=devs
+                            ))
+        dev_sqn = dev_sqn + 1
+
+
+    if(main_local.link_tree and (outdated_link == 1)):
+        frames2send.append(frames.LINK_REQ(                     #### LINK_REQ
+                            frm_header=frames.header(0,0,0,0),
+                            dest_local_id=self.header.local_id))
+        links = []                                              #### LINK_ADV (unsolicited)
+        for lndev in link_dev_list:
+            links.append(frames.LINK_ADV_msg(
+                                trans_dev_index=lndev.key.dev.idx,  # uint8_t (0 - 255)
+                                peer_dev_index=self.header.dev_idx, # uint8_t (0 - 255)
+                                peer_local_id=self.header.local_id  # uint32_t (0 - 4294967295)
+                                ))
+        frames2send.append(frames.LINK_ADV(
+                            frm_header=frames.header(0,0,0,0),
+                            dev_sqn_no_ref=main_local.dev_adv_sqn,  # uint16_t (0 - 65535)
+                            link_msgs=links
+                            ))
+        link_sqn = link_sqn + 1
+    elif(main_local.link_tree and (outdated_dev == 0) and (link_req == 1)):
+        links = []                                              #### LINK_ADV
+        for lndev in link_dev_list:
+            links.append(frames.LINK_ADV_msg(
+                                trans_dev_index=lndev.key.dev.idx,  # uint8_t (0 - 255)
+                                peer_dev_index=self.header.dev_idx, # uint8_t (0 - 255)
+                                peer_local_id=self.header.local_id  # uint32_t (0 - 4294967295)
+                                ))
+        frames2send.append(frames.LINK_ADV(
+                            frm_header=frames.header(0,0,0,0),
+                            dev_sqn_no_ref=main_local.dev_adv_sqn,  # uint16_t (0 - 65535)
+                            link_msgs=links
+                            ))
+        link_sqn = link_sqn + 1
+
 
     # PERIODICAL
-    frames2send.append(frames.HELLO_ADV(                # HELLO_ADV
-                            frm_header=frames.header(
-                                short_frm=0,
-                                relevant_frm=0,
-                                frm_type=0,
-                                frm_len=0
-                            ),
-                            HELLO_sqn_no=0))
+    if(main_local.link_tree and (outdated_dev == 0) and (outdated_link == 0)):
+        for lndev in link_dev_list:                             #### RP_ADV
+            rp_127_converted = round((lndev.timeaware_tx_probe * 127) / 128849018880)    # UMETRIC_MAX
+            rp_msgs2send.append(frames.RP_ADV_msg(
+                                rp_127range=rp_127_converted,       # 7 bits (0 - 127)
+                                ogm_req=0                           # 1 bit (0 / 1) (HAROLD)
+                                ))
 
-    if main_local.link_tree:
-        rp = []
-        frames2send.append(frames.RP_ADV(               # RP_ADV
-                            frm_header=frames.header(
-                                short_frm=0,
-                                relevant_frm=0,
-                                frm_type=0,
-                                frm_len=0
-                            ),
-                            rp_msgs=rp))
-    # RP_ADV
-    if(main_local.packet_link_sqn_ref != self.header.link_adv_sqn):
-        pass
-        # send LINK_REQ
-        # send unsolicited LINK_ADV
-    # LINK_ADV
 
-    return frames2send
+# PERIODICAL (every 500ms)
+frames2send.append(frames.HELLO_ADV(                            #### HELLO_ADV
+                            frm_header=frames.header(0,0,0,0),  
+                            HELLO_sqn_no=hello_sqn))                # uint16_t (0 - 65535)
+hello_sqn = hello_sqn + 1
 
-    
-    
+if main_local.link_tree:    # send only if the node has links
+    frames2send.append(frames.RP_ADV(                           #### RP_ADV
+                            frm_header=frames.header(0,0,0,0),  
+                            rp_msgs=rp_msgs2send))
+
+## AFTER SENDING
+# rp_msgs2send.clear()
+# link_msgs2send.clear()
+# dev_msgs2send.clear()
+
+
     
 ## DEBUGGING
 
