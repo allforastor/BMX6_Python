@@ -17,14 +17,14 @@ import nodes
 import frames
 # import miscellaneous
 
-my_iid_repos = nodes.iid_repos()
+# my_iid_repos = nodes.iid_repos()
 
 
 
 ## TEST VALUES
 fhead = frames.header(0,0,0,0)
 ln_msg = frames.LINK_ADV_msg(1,1,1)
-ln_frame = frames.LINK_ADV(fhead, 1, [ln_msg])
+ln_frame = frames.LINK_ADV(fhead, 0, [ln_msg])
 rp_msg = frames.RP_ADV_msg(127,1)
 rp_msg2 = frames.RP_ADV_msg(7,1)
 rp_frame = frames.RP_ADV(fhead, [rp_msg])
@@ -32,7 +32,8 @@ rp_frame2 = frames.RP_ADV(fhead, [rp_msg2])
 hello_frame = frames.HELLO_ADV(fhead,10)
 head = bmx.packet_header(0,0,0,0,1,0,11111,0)
 head2 = bmx.packet_header(0,0,0,0,1,1,11112,1)
-packet = bmx.packet(head, [ln_frame, hello_frame, rp_frame])
+# packet = bmx.packet(head, [ln_frame, hello_frame, rp_frame])
+packet = bmx.packet(head, [hello_frame])
 packet2 = bmx.packet(head2, [hello_frame, rp_frame2])
 
 
@@ -100,15 +101,21 @@ def get_interfaces(iflist):
                 interface.type = 0
                 interface.umetric_min = 128849018880    # UMETRIC_MAX
                 interface.umetric_max = 128849018880    # UMETRIC_MAX
+                interface.fmu8_min = 255                # 0xff (converted UMETRIC to FMETRIC_U8_T)
+                interface.fmu8_max = 255                # 0xff (converted UMETRIC to FMETRIC_U8_T)
             elif((interface.name[0] == 'e') or (interface.name[0] == 'E')):         # ethernet
                 interface.type = 1
                 interface.channel = 255
                 interface.umetric_min = 1000000000      # DEF_DEV_BITRATE_MIN_LAN
                 interface.umetric_max = 1000000000      # DEF_DEV_BITRATE_MAX_LAN
+                interface.fmu8_min = 199                # 0xc7 (converted UMETRIC to FMETRIC_U8_T)
+                interface.fmu8_max = 199                # 0xc7 (converted UMETRIC to FMETRIC_U8_T)
             else:
                 interface.type = 2                                                  # wireless
                 interface.umetric_min = 6000000         # DEF_DEV_BITRATE_MIN_WIFI
                 interface.umetric_max = 56000000        # DEF_DEV_BITRATE_MAX_WIFI
+                interface.fmu8_min = 139                # 0x8b (converted UMETRIC to FMETRIC_U8_T)
+                interface.fmu8_max = 165                # 0xa5 (converted UMETRIC to FMETRIC_U8_T)
         if(interface.type == 0):
             interface.idx = 0
             iflist[0] = interface
@@ -138,6 +145,8 @@ def print_interfaces(iflist):
         print("    channel:",'\t', x.channel)
         print("    umetric_min:", x.umetric_min)
         print("    umetric_max:", x.umetric_max)
+        print("    fmu8_min:", x.fmu8_min)
+        print("    fmu8_max:", x.fmu8_max)
     print()
 
 def local_id_gen(mac_addr):
@@ -242,7 +251,7 @@ def packet_received(self, ip6):
     ## FRAME ITERATION
     link_req = 0    # set to 1 if a REQ must be sent
     dev_req = 0     # set to 1 if a REQ must be sent
-    rp_msgs = []         # holds rp_adv messages
+    rp = []         # holds rp_adv messages
     for frame in self.frames:
         if(type(frame) == frames.LINK_ADV):     # LINK_ADV
             main_local.link_adv_received(frame)
@@ -308,9 +317,9 @@ def packet_received(self, ip6):
         outdated_dev = -1
 
     # check if LINK_REQ IS NEEDED 
-    if(main_local.packet_link_sqn_number > main_local.link_adv_sqn):
+    if(main_local.packet_link_sqn_ref > main_local.link_adv_sqn):
         outdated_link = 1                       # set to 1 if link is outdated
-    elif(main_local.packet_link_sqn_number == main_local.link_adv_sqn):
+    elif(main_local.packet_link_sqn_ref == main_local.link_adv_sqn):
         outdated_link = 0                       # set to 0 if link is updated
     else:
         outdated_link = -1
@@ -326,6 +335,7 @@ def packet_received(self, ip6):
                             dest_local_id=self.header.local_id))    # uint32_t (0 - 4294967295)
         # ADD: unsolicited DEV_ADV after done with format below
     elif(main_local.link_tree and (dev_req == 1)): # ADD: or ifdev_list changed after calling get_interfaces
+        global dev_sqn
         devs = []                                               #### DEV_ADV
         for dev in dev_list:
             if((dev.type != 0) and (dev.active == 1)):
@@ -333,8 +343,8 @@ def packet_received(self, ip6):
                 devs.append(frames.DEV_ADV_msg(
                                 dev_index=dev.idx,                  # uint8_t (0 - 255)
                                 channel=dev.channel,                # uint8_t (0 - 255)
-                                trans_bitrate_min=dev.umetric_min,  # FMETRIC_U8_T  # TO-DO
-                                trans_bitrate_max=dev.umetric_max,  # FMETRIC_U8_T  # TO-DO
+                                trans_bitrate_min=dev.fmu8_min,     # FMETRIC_U8_T  # TO-DO
+                                trans_bitrate_max=dev.fmu8_max,     # FMETRIC_U8_T  # TO-DO
                                 local_ipv6=int(dev.ipv6),           # int (hex)
                                 mac_address=mac_converted           # int (hex)
                                 ))
@@ -347,6 +357,7 @@ def packet_received(self, ip6):
 
 
     if(main_local.link_tree and (outdated_link == 1)):
+        global link_sqn
         frames2send.append(frames.LINK_REQ(                     #### LINK_REQ
                             frm_header=frames.header(0,0,0,0),
                             dest_local_id=self.header.local_id))
@@ -441,8 +452,8 @@ def print_all(nodes):
                 print('\t\t\t\t\t\t\t', "    type = ", lndev.key.dev.type)
                 print('\t\t\t\t\t\t\t', "    active = ", lndev.key.dev.active)
                 print('\t\t\t\t\t\t\t', "    channel = ", lndev.key.dev.channel)
-                print('\t\t\t\t\t\t\t', "    umetric_min = ", lndev.key.dev.umetric_min)
-                print('\t\t\t\t\t\t\t', "    umetric_max = ", lndev.key.dev.umetric_max)
+                print('\t\t\t\t\t\t\t', "    umetric_min (fmu8_min) = ", lndev.key.dev.umetric_min, " (", hex(lndev.key.dev.fmu8_min),")",sep="")
+                print('\t\t\t\t\t\t\t', "    umetric_max (fmu8_max) = ", lndev.key.dev.umetric_max, " (", hex(lndev.key.dev.fmu8_max),")",sep="")
                 print('\t\t\t\t\t\t', "    tx_probe_umetric =", lndev.tx_probe_umetric)
                 print('\t\t\t\t\t\t', "    timeaware_tx_probe =", lndev.timeaware_tx_probe)
                 print('\t\t\t\t\t\t', "    rx_probe_record:")
@@ -491,12 +502,41 @@ def print_all(nodes):
         i1 = i1 + 1
         print()
 
+def print_frames(frame_list):
+    i1 = 1
+    print("FRAMES TO SEND:")
+    for frame in frame_list:
+        i2 = 1
+        print("[", i1, "]  ", sep="", end='')
+        if(type(frame) == frames.LINK_ADV):     # LINK_ADV
+            print("LINK_ADV(frm_header=",frame.frm_header,", dev_sqn_no_ref=", frame.dev_sqn_no_ref, ", link_msgs:",sep="")
+            for msg in frame.link_msgs:
+                print("\t\t[", i2, "]  ", msg, sep="")
+                i2 = i2 + 1
+        elif(type(frame) == frames.LINK_REQ):   # LINK_REQ
+            print(frame)
+        elif(type(frame) == frames.DEV_ADV):    # DEV_ADV
+            print("DEV_ADV(frm_header=",frame.frm_header,", dev_sqn_no=", frame.dev_sqn_no, ", dev_msgs:",sep="")
+            for msg in frame.dev_msgs:
+                print("\t\t[", i2, "]  ", msg, sep="")
+                i2 = i2 + 1
+        elif(type(frame) == frames.DEV_REQ):    # DEV_REQ
+            print(frame)
+        elif(type(frame) == frames.RP_ADV):     # RP_ADV
+            print("RP_ADV(frm_header=",frame.frm_header, ", rp_msgs:",sep="")
+            for msg in frame.rp_msgs:
+                print("\t\t[", i2, "]  ", msg, sep="")
+                i2 = i2 + 1
+        elif(type(frame) == frames.HELLO_ADV):  # HELLO_ADV
+            print(frame)
+        i1 = i1 + 1
+
 
 ## TESTING
 
-frames_list = packet_received(packet, '::1')
+packet_received(packet, '::1')
 print_all(local_list)
-print(frames_list)
+print_frames(frames2send)
 # packet_received(packet2, '::1')
 # print_all(local_list)
 # print(local_ids)
