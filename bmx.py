@@ -244,7 +244,7 @@ def dissect_packet(recvd_packet):
 			frameslist.append(ogm_adv_frame)
 			curr_pos += ogm_adv_frame.frm_header.frm_len
 
-	packetrecvd = (packetheader, frameslist)
+	packetrecvd = packet(packetheader, frameslist)
 
 	return packetrecvd
 
