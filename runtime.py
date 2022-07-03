@@ -393,43 +393,45 @@ def packet_received(self, ip6):
 
 def form_frames2send_list(frame_handler):
 
+    	
+	
     # PERIODICAL (every 500ms)
-    frame_handler.frames2send.append(frames.HELLO_ADV(          #### HELLO_ADV
+    frame_handler.frames2send.append(bmx.set_frame_header(frames.HELLO_ADV(          #### HELLO_ADV		#nagcall ako rito ng bmx.set_frame_header(hello_frame) para maset frame header
                             frm_header=frames.header(0,0,0,0),  
                             HELLO_sqn_no=frame_handler.hello_sqn    # uint16_t (0 - 65535)
-                            ))
+                            )))
     if frame_handler.rp_msgs2send:                              #### RP_ADV
-        frame_handler.frames2send.append(frames.RP_ADV(
+        frame_handler.frames2send.append(bmx.set_frame_header(frames.RP_ADV(
                             frm_header=frames.header(0,0,0,0),  
                             rp_msgs=frame_handler.rp_msgs2send
-                            ))
+                            )))
 
     # NON-PERIODICAL
     if frame_handler.dev_req_ids:                               #### DEV_REQ
         for dev_req_id in frame_handler.dev_req_ids:
-            frame_handler.frames2send.append(frames.DEV_REQ(
+            frame_handler.frames2send.append(bmx.set_frame_header(frames.DEV_REQ(
                             frm_header=frames.header(0,0,0,0),
                             dest_local_id=dev_req_id                # uint32_t (0 - 4294967295)
-                            ))
+                            )))
     if frame_handler.dev_msgs2send:                             #### DEV_ADV
-        frame_handler.frames2send.append(frames.DEV_ADV(
+        frame_handler.frames2send.append(bmx.set_frame_header(frames.DEV_ADV(
                             frm_header=frames.header(0,0,0,0),
                             dev_sqn_no=frame_handler.dev_sqn,       # uint16_t (0 - 65535)
                             dev_msgs=frame_handler.dev_msgs2send
-                            ))
+                            )))
 
     if frame_handler.link_msgs2send:                            #### LINK_REQ
         for link_req_id in frame_handler.link_req_ids:
-            frame_handler.frames2send.append(frames.LINK_REQ(
+            frame_handler.frames2send.append(bmx.set_frame_header(frames.LINK_REQ(
                             frm_header=frames.header(0,0,0,0),
                             dest_local_id=link_req_id               # uint32_t (0 - 4294967295)
-                            ))
+                            )))
     if frame_handler.link_msgs2send:                            #### LINK_ADV
-        frame_handler.frames2send.append(frames.LINK_ADV(
+        frame_handler.frames2send.append(bmx.set_frame_header(frames.LINK_ADV(
                             frm_header=frames.header(0,0,0,0),
                             dev_sqn_no_ref=main_local.dev_adv_sqn,  # uint16_t (0 - 65535)
                             link_msgs=frame_handler.link_msgs2send
-                            ))
+                            )))
 
 ################################################################
 #########   COMPLETE FRAME HEADERS AND PACKET HEADER   #########
@@ -443,19 +445,22 @@ def form_frames2send_list(frame_handler):
 # packer_header.local_id = main_local.local_id
 # packer_header.dev_idx = main_local.best_tp_linkdev.key.dev.idx
 
+packet_header = bmx.packet_header(0,0,0,0,fhandler.link_sqn,0,main_local.local_id,0)
+
+
 
 ################################################################
 ####################   CALL SEND FUNCTION   ####################
 ################################################################
-
-# send(packet(header=packet_header, frames=fhandler.frames2send))
+packet = bmx.create_packet(packet_header, fhandler.frames2send) 		### created packet here is as bytes
+bmx.send('ff02::2', 6240, 1, packet)
 
 
 ################################################################
 ####################   CALL AFTER SENDING   ####################
 ################################################################
-# fhandler.iterate()    # iterates all sqn that were sent
-# fhandler.reset()      # empties lists to be sent
+fhandler.iterate()    # iterates all sqn that were sent
+fhandler.reset()      # empties lists to be sent
 
 
     
@@ -601,7 +606,13 @@ print(hex(loid))
 print("local_id =", loid,'\n')
 
 # check if the receive packet fills the data properly
-packet_received(packet, '::1')
+recvdpacket, senderipv6 = bmx.listen('ff02::2', 6240)           #### CALLED RECEIVING FUNCTION HERE ####
+packet = bmx.dissect_packet(recvdpacket)
+print("this is the sender's ipv6 address: ", senderipv6[0])
+print("this is the received packet:")
+print(packet)
+#print(senderipv6)
+packet_received(packet, senderipv6[0])
 # packet_received(packet2, '::1')
 print_all(local_list)
 
@@ -610,7 +621,7 @@ form_frames2send_list(fhandler)
 print_frames(fhandler.frames2send)
 
 # check if fhandler is cleared and the sqn are iterated
-# print(fhandler,'\n')
+print(fhandler,'\n')
 # fhandler.iterate()
 # fhandler.reset()
 # print(fhandler, '\n')
