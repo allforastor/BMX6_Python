@@ -291,9 +291,9 @@ class iid_entry:
 
 @dataclass
 class iid_repos:
-    arr_size: int = 0                                       # number of allocated array fields; = max()?
-    min_free: int = 0                                       # first unused key from beginning of dictionary
-    max_free: int = 0                                       # first unused key after the last used field in the dictionary; =max()+1
+    arr_size: int = 0                                       # number of allocated array fields
+    min_free: int = 0                                       # first unused index from beginning of the list
+    max_free: int = 0                                       # first unused index after the last used field
     tot_used: int = 0                                       # total number of used keys; len()
     
     arr: list = field(default_factory = lambda:[])          # serves as the table of iid_entry objects
@@ -305,7 +305,13 @@ class iid_repos:
         print("tot_used: ", self.tot_used)
         print("u8 | myIID4x | dhash")
         for entry in self.arr:
-            print(entry.u8, "|", entry.ref.myIID4x, "|", entry.dhash_n.dhash)
+            try:
+                print(entry.u8, "|", entry.ref.myIID4x, "|", entry.dhash_n.dhash)
+            except AttributeError:
+                if (entry.ref is None):
+                    print(entry.u8, "|", 0, "|", entry.dhash_n.dhash)
+                elif (entry.dhash_n is None):
+                    print(entry.u8, "|", entry.ref.myIID4x, "|", 0)
         print("----")
 
     def get_iid_entry(self, iid):                           # prints repository table contents
@@ -338,44 +344,37 @@ class iid_repos:
         # setting iid_repos attributes
         self.tot_used += 1
         self.max_free = max(self.max_free, IIDpos + 1)
+        self.arr_size = self.max_free - 1
 
-        min = self.min_free     # list index of first unused key from beginning of list
-        if (min == IIDpos):     # and min <= self.max_free ?
+        min = self.min_free        
+        if (min == IIDpos):
             min += 1
-            # increment until next free position
-            for entry in self.arr[min:]:
-                try:
-                    if (entry.u8 == min):
-                        min += 1
-                except KeyError: break
-
-        self.min_free = min
-
-        self.arr_size = max (self.arr_size, self.max_free + 1)
+            for min in range (self.arr_size + 1):           # increment until next free position
+                if (self.get_iid_entry(min) is None):
+                    break
+        self.min_free = self.max_free
+        
+        # adding iid_entry object into list
         if (myIID4x):
-            # self.arr[IIDpos-1].ref.myIID4x = myIID4x
-            # self.arr[IIDpos-1].ref.referred_by_neigh_timestamp_sec = (time.perf_counter() - start_time) * 1000
             ref = iid_ref(myIID4x,(time.perf_counter() - start_time) * 1000)
             self.arr.insert(IIDpos-1,iid_entry(IIDpos, ref, None))
         else:
-            # self.arr[IIDpos-1].node = dhnode
             ref = iid_ref(0,0)
             self.arr.insert(IIDpos-1, iid_entry(IIDpos, ref, dhnode))
             dhnode.referred_by_me_timestamp = (time.perf_counter() - start_time) * 1000
 
 
-    def iid_new_myIID4x(self, dhnode):    # called by my_iid_repos only; adds new IID entry given a dhash_node
+    def iid_new_myIID4x(self, dhnode):                      # called by my_iid_repos only; adds new IID entry given a dhash_node
         if (self.arr_size >= self.tot_used):
-            rand_iid = randint(0,self.arr_size)     # could also be max_free because arr_size + 1
-            mid = max(1,rand_iid)                   # minimum iid value: IID_MIN_USED = 1
+            rand_iid = randint(0,self.arr_size)
+            mid = max(1,rand_iid)                           # minimum iid value: IID_MIN_USED = 1
 
-            for entry in self.arr[mid:]:
-                try:
-                    if (entry.u8 == mid):     # possibly remove 2nd condition since existing key implies existing node?
-                        mid += 1
-                        if (mid >= self.arr_size):
-                            mid = 1     # return to minimum iid 1
-                except KeyError: break
+            for mid in range(1,self.arr_size + 1):
+                mid += 1
+                if (self.get_iid_entry(mid) is None):
+                    break
+                elif (mid >= self.arr_size):
+                    mid = 1                                 # return to minimum iid value            
         else:
             mid = self.min_free
 
@@ -399,7 +398,7 @@ class neigh_node:
     local: local_node = None                                                    # local_node
 
     neighIID4me: int = 0                                                        # neighIID that neighbor uses for itself
-    neighIID4x_repos: iid_repos = None                                          # repository according to the neighbor's vocabulary
+    neighIID4x_repos: iid_repos = iid_repos()                                   # repository according to the neighbor's vocabulary
 
     ogm_new_aggregation_received: time = 0                                      # TIME_T
     ogm_aggregation_cleared_max: int = 0                                        # AGGREG_SQN_T  # ack'd
@@ -421,13 +420,13 @@ class neigh_node:
         #     if (repos.arr_size > 32 and repos.arr_size > my_iid_repos.arr_size):
         #         print("IID_REPOS USAGE WARNING")
 
-        neigh_rep.iid_set(neighIID4x, myIID4x)
+        neigh_rep.iid_set(neighIID4x, myIID4x, None)
 
     def get_node_by_neighIID4x(self, my_repos, neighIID4x):  
         neigh_rep = self.neighIID4x_repos
         ref = (neigh_rep.get_iid_entry(neighIID4x)).ref
 
-        if (ref == None):
+        if (ref is None):
             print("neighIID4x=",neighIID4x," not recorded by neigh_repos")
         elif (((time.perf_counter() - start_time) * 1000) - ref.referred_by_neigh_timestamp_sec > 270):
             print("neighIID4x=",neighIID4x," outdated in neigh_repos")
