@@ -1,9 +1,9 @@
 import string
-from dataclasses import dataclass, field
 import socket
 import re, uuid
 import ipaddress
 from math import log2
+from dataclasses import dataclass, field
 
 def custom_log2(num):
     if num < 0:

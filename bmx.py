@@ -1,18 +1,17 @@
-import string
 import sys
+import time
+import pickle
 import random
 import socket
-import pickle
-from xml.etree.ElementTree import canonicalize
-import frames as frames
-import time
-from datetime import datetime
-from dataclasses import dataclass
-import threading
+import string
 import struct
 import binascii
+import threading
+from datetime import datetime
+from dataclasses import dataclass
+from xml.etree.ElementTree import canonicalize
+import frames as frames
 
-start_time = time.perf_counter()
 
 frame_type_HELLO_ADV = 4
 

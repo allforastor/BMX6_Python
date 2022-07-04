@@ -1,19 +1,16 @@
 import time
-# import psutil
 import socket
 import ipaddress
 from sys import getsizeof
+from weakref import ref
+from random import randint
 from collections import deque
 from dataclasses import dataclass, field
 from importlib.machinery import OPTIMIZED_BYTECODE_SUFFIXES
-from weakref import ref
-# import bmx
 import frames
-from random import randint
 
 start_time = time.perf_counter()
 
-# avl_tree local_tree
 
 @dataclass
 class local_node:
@@ -26,7 +23,7 @@ class local_node:
 
     packet_sqn: int = -1                                                        # PKT_SQN_T
     packet_time: time = 0                                                       # TIME_T
-    packet_link_sqn_ref: int = 0                                                # LINKADV_SQN_T (0 - 255)(frames.LINK_ADV.dev_sqn_no_ref)
+    packet_link_sqn_ref: int = -1                                                # LINKADV_SQN_T (0 - 255)(frames.LINK_ADV.dev_sqn_no_ref)
 
     # from the latest LINK_ADV
     link_adv_sqn: int = -1                                                       # sqn of the latest LINK_ADV (LINKADV_SQN_T (0 - 255)(frames.LINK_ADV.dev_sqn_no_ref)
@@ -35,10 +32,10 @@ class local_node:
     link_adv_msg_for_me: int = -1                                               # index of the msg for this node
     link_adv_msg_for_him: int = -1                                              # index of msg for the other node
     link_adv: list = field(default_factory=lambda:[])                           # msg_link_adv (frames.LINK_ADV)
-    link_adv_dev_sqn_ref: int = 1                                               # DEVADV_SQN_T (0 - 255)(frames.DEV_ADV.dev_sqn_np)
+    link_adv_dev_sqn_ref: int = -1                                               # DEVADV_SQN_T (0 - 255)(frames.DEV_ADV.dev_sqn_np)
 
     # from the latest DEV_ADV
-    dev_adv_sqn: int = 1                                                        # sqn of the latest DEV_ADV (DEVADV_SQN_T (0 - 255)(frames.DEV_ADV.dev_sqn_np))
+    dev_adv_sqn: int = -1                                                        # sqn of the latest DEV_ADV (DEVADV_SQN_T (0 - 255)(frames.DEV_ADV.dev_sqn_np))
     dev_adv_msgs: int = -1                                                      # number of msgs in the DEV_ADV frame
     dev_adv: list = field(default_factory=lambda:[])                            # msg_dev_adv (frames.DEV_ADV)
 
@@ -71,8 +68,10 @@ class local_node:
                 self.link_adv_msg_for_me = self.link_adv_msgs
             self.link_adv_msgs = self.link_adv_msgs + 1
             self.link_adv.append(x)
-        # self.link_adv_msg_for_him = 0   # SET THIS WHEN SENDING
+        # self.link_adv_msg_for_him = 0     # SET THIS WHEN SENDING
         self.link_adv_dev_sqn_ref = frame.dev_sqn_no_ref
+        if(self.dev_adv_sqn == -1):         # copy first dev_sqn_no_ref
+            self.dev_adv_sqn = frame.dev_sqn_no_ref
 
     def dev_adv_received(self, frame):
         self.dev_adv_sqn = frame.dev_sqn_no
