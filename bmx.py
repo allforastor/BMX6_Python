@@ -13,7 +13,6 @@ import struct
 import binascii
 
 start_time = time.perf_counter()
-# print(start_time)
 
 frame_type_HELLO_ADV = 4
 
