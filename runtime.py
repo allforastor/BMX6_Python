@@ -78,6 +78,8 @@ class frame_handler:
 fhandler = frame_handler()
 
 local_ids = []                  # list of local_ids
+global_ids = []    		# list of global ids
+description_list = []   	# list of descriptions
 local_list = []                 # list of local_nodes
 link_keys = []                  # list of link_node_key
 link_list = []                  # list of link_nodes
@@ -156,6 +158,12 @@ def get_interfaces(iflist):
             return interface.mac                                        # use ethernet mac addr for local_id generation
     return -1
 
+def global_id_gen():        # create global_id
+    name = socket.gethostname()
+    randomm = hex(random.randint(75557863725914323419136, 1208925819614629174706175))[2:]  # 1 w/ 19 0's in decimal
+    glid = name + "." + randomm
+    return glid
+
 def local_id_gen(mac_addr):
     # | lid[0] | lid[1] | lid[2] | lid[3] |
     # | random | mac[3] | mac[4] | mac[5] |
@@ -182,13 +190,19 @@ def check_if_exists(object, object_list):
 
 lomac = get_interfaces(dev_list)                # gets the MAC address
 loid = local_id_gen(lomac)                      # generates the local_id of the main node
+globalid = global_id_gen()      		# generates global id of the main node  
 # main_local = nodes.local_node(local_id = loid)  # main local_node (node of itself)
-main_local = nodes.local_node(local_id = 1)     # main local_node (node of itself)
+main_local = nodes.local_node(local_id = 1)     # main local_node (node of itself) 
+main_name = globalid[:-21]			# slice global id to get name part
+main_pkid = globalid[-20:]			# slide global id to get id part
+main_description = nodes.description(name=main_name, pkid=main_pkid)  	# create description of the node 
+main_orig = nodes.orig_node(global_id=globalid, desc=main_description)  # create orig node to store global id 
+#print(main_orig)				#debugging
 
 local_ids.append(loid)                          # store in global local_id list
+global_ids.append(globalid)     		# store in global global_id list    
+description_list.append(main_pkid)  		# store pkid part of the description in global description list
 local_list.append(main_local)                   # store in global local_node list
-
-
 
 
 
