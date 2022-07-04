@@ -665,8 +665,8 @@ def DEV_ADV_msg_to_bytes(DEV_ADV_msg):
 	channel = DEV_ADV_msg.channel
 	transmitter_bitrate_min = DEV_ADV_msg.trans_bitrate_min
 	transmitter_bitrate_max = DEV_ADV_msg.trans_bitrate_max
-	local_ipv6 = binascii.unhexlify(DEV_ADV_msg.local_ipv6)
-	mac_address = binascii.unhexlify(DEV_ADV_msg.mac_address)
+	local_ipv6 = DEV_ADV_msg.local_ipv6.to_bytes(16, 'big')
+	mac_address = DEV_ADV_msg.mac_address.to_bytes(6, 'big')
 
 	dev_adv_msg_bytes = struct.pack("!B B B B 16s 6s", device_index, channel, transmitter_bitrate_min, 
 												transmitter_bitrate_max, local_ipv6, mac_address)
@@ -677,11 +677,11 @@ def dissect_DEV_ADV_msg(recvd_DEV_ADV_msg):
 	recvd_dev_adv_msg = struct.unpack("!B B B B 16s 6s", recvd_DEV_ADV_msg)
 
 	device_index = recvd_dev_adv_msg[0]
-	channel = recvd_dev_adv_msg[1]
+	channel = recvd_dev_adv_msg[1]		
 	transmitter_bitrate_min = recvd_dev_adv_msg[2]
 	transmitter_bitrate_max =recvd_dev_adv_msg[3]
-	local_ipv6 = binascii.hexlify(recvd_dev_adv_msg[4]).decode('ascii')
-	mac_address = binascii.hexlify(recvd_dev_adv_msg[5]).decode('ascii')
+	local_ipv6 = int.from_bytes(recvd_dev_adv_msg[4], 'big')
+	mac_address = int.from_bytes(recvd_dev_adv_msg[5], 'big')
 
 	dev_adv_msg = frames.DEV_ADV_msg(device_index, channel, transmitter_bitrate_min, transmitter_bitrate_max, local_ipv6, mac_address)
 
