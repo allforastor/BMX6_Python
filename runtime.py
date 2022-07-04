@@ -56,6 +56,8 @@ class frame_handler:
 
 fhandler = frame_handler()      # holds information used later for sending the packet
 local_ids = []                  # list of local_ids
+global_ids = []    		# list of global ids
+description_list = []   	# list of descriptions
 local_list = []                 # list of local_nodes
 link_keys = []                  # list of link_node_key
 link_list = []                  # list of link_nodes
@@ -134,6 +136,12 @@ def get_interfaces(iflist):
             return interface.mac                                        # use ethernet mac addr for local_id generation
     return -1
 
+def global_id_gen():        # create global_id
+    name = socket.gethostname()
+    randomm = hex(random.randint(75557863725914323419136, 1208925819614629174706175))[2:]  # 1 w/ 19 0's in decimal
+    glid = name + "." + randomm
+    return glid
+
 def local_id_gen(mac_addr):
     # | lid[0] | lid[1] | lid[2] | lid[3] |
     # | random | mac[3] | mac[4] | mac[5] |
@@ -156,13 +164,21 @@ def check_if_exists(object, object_list):
             return 0
         else:
             return -1
-    return -1                           # object not found 
+    return -1                               # object not found 
 
 lomac = get_interfaces(dev_list)                # gets the MAC address
 loid = local_id_gen(lomac)                      # generates the local_id of the main node
+globalid = global_id_gen()      		        # generates global id of the main node  
 main_local = nodes.local_node(local_id = loid)  # main local_node (node of itself)
+main_name = globalid[:-21]			            # slice global id to get name part
+main_pkid = globalid[-20:]			            # slide global id to get id part
+main_description = nodes.description(name=main_name, pkid=main_pkid)  	# create description of the node 
+main_orig = nodes.orig_node(global_id=globalid, desc=main_description)  # create orig node to store global id 
+#print(main_orig)				#debugging
 
 local_ids.append(loid)                          # store in global local_id list
+global_ids.append(globalid)     		        # store in global global_id list    
+description_list.append(main_pkid)  		    # store pkid part of the description in global description list
 local_list.append(main_local)                   # store in global local_node list
 
 
@@ -379,11 +395,13 @@ def packet_received(self, ip6):
 
 def form_frames2send_list(frame_handler):
 
+    	
+	
     # PERIODICAL (every 500ms)
-    frame_handler.frames2send.append(frames.HELLO_ADV(          #### HELLO_ADV
+    frame_handler.frames2send.append(bmx.set_frame_header(frames.HELLO_ADV(          #### HELLO_ADV		#nagcall ako rito ng bmx.set_frame_header(hello_frame) para maset frame header
                             frm_header=frames.header(0,0,0,0),  
                             HELLO_sqn_no=frame_handler.hello_sqn    # uint16_t (0 - 65535)
-                            ))
+                            )))
     if(frame_handler.lndevs_expected):                          #### RP_ADV
         for lndev_info in frame_handler.lndevs_expected:
             lndev = link_list[lndev_info[0]].lndev_list[lndev_info[1]]
@@ -395,38 +413,38 @@ def form_frames2send_list(frame_handler):
                                 rp_127range=rp_127_converted,       # 7 bits (0 - 127)
                                 ogm_req=0                           # 1 bit (0 / 1) (HAROLD)
                                 ))
-        frame_handler.frames2send.append(frames.RP_ADV(
+        frame_handler.frames2send.append(bmx.set_frame_header(frames.RP_ADV(
                             frm_header=frames.header(0,0,0,0),  
                             rp_msgs=frame_handler.rp_msgs2send
-                            ))
+                            )))
 
     # NON-PERIODICAL
     if frame_handler.dev_req_ids:                               #### DEV_REQ
         for dev_req_id in frame_handler.dev_req_ids:
-            frame_handler.frames2send.append(frames.DEV_REQ(
+            frame_handler.frames2send.append(bmx.set_frame_header(frames.DEV_REQ(
                             frm_header=frames.header(0,0,0,0),
                             dest_local_id=dev_req_id                # uint32_t (0 - 4294967295)
-                            ))
+                            )))
     if frame_handler.dev_msgs2send:                             #### DEV_ADV
-        frame_handler.frames2send.append(frames.DEV_ADV(
+        frame_handler.frames2send.append(bmx.set_frame_header(frames.DEV_ADV(
                             frm_header=frames.header(0,0,0,0),
                             dev_sqn_no=frame_handler.dev_sqn,       # uint16_t (0 - 65535)
                             dev_msgs=frame_handler.dev_msgs2send
-                            ))
+                            )))
 
     if frame_handler.link_msgs2send:                            #### LINK_REQ
         for link_req_id in frame_handler.link_req_ids:
-            frame_handler.frames2send.append(frames.LINK_REQ(
+            frame_handler.frames2send.append(bmx.set_frame_header(frames.LINK_REQ(
                             frm_header=frames.header(0,0,0,0),
                             dest_local_id=link_req_id               # uint32_t (0 - 4294967295)
-                            ))
+                            )))
     if frame_handler.link_msgs2send:                            #### LINK_ADV
         frame_handler.lndevs_expected = copy.deepcopy(frame_handler.lndevs_possible)
-        frame_handler.frames2send.append(frames.LINK_ADV(
+        frame_handler.frames2send.append(bmx.set_frame_header(frames.LINK_ADV(
                             frm_header=frames.header(0,0,0,0),
                             dev_sqn_no_ref=main_local.dev_adv_sqn,  # uint16_t (0 - 65535)
                             link_msgs=frame_handler.link_msgs2send
-                            ))
+                            )))
 
 ################################################################
 #########   COMPLETE FRAME HEADERS AND PACKET HEADER   #########
@@ -440,19 +458,22 @@ def form_frames2send_list(frame_handler):
 # packer_header.local_id = main_local.local_id
 # packer_header.dev_idx = main_local.best_tp_linkdev.key.dev.idx
 
+packet_header = bmx.packet_header(0,0,0,0,fhandler.link_sqn,0,main_local.local_id,0)
+
+
 
 ################################################################
 ####################   CALL SEND FUNCTION   ####################
 ################################################################
-
-# send(packet(header=packet_header, frames=fhandler.frames2send))
+packet = bmx.create_packet(packet_header, fhandler.frames2send) 		### created packet here is as bytes
+bmx.send('ff02::2', 6240, 1, packet)
 
 
 ################################################################
 ####################   CALL AFTER SENDING   ####################
 ################################################################
-# fhandler.iterate()    # iterates all sqn that were sent
-# fhandler.reset()      # empties lists to be sent
+fhandler.iterate()    # iterates all sqn that were sent
+fhandler.reset()      # empties lists to be sent
 
 
     
@@ -618,6 +639,17 @@ print_interfaces(dev_list)
 print(lomac)
 print(hex(loid))
 print("local_id =", loid,'\n')
+
+# check if the receive packet fills the data properly
+recvdpacket, senderipv6 = bmx.listen('ff02::2', 6240)           #### CALLED RECEIVING FUNCTION HERE ####
+packet = bmx.dissect_packet(recvdpacket)
+print("this is the sender's ipv6 address: ", senderipv6[0])
+print("this is the received packet:")
+print(packet)
+#print(senderipv6)
+packet_received(packet, senderipv6[0])
+# packet_received(packet2, '::1')
+print_all(local_list)
 
 
 ## TEST VALUES

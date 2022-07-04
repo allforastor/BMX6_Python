@@ -6,12 +6,12 @@ from sys import getsizeof
 from collections import deque
 from dataclasses import dataclass, field
 from importlib.machinery import OPTIMIZED_BYTECODE_SUFFIXES
-import bmx
+from weakref import ref
+# import bmx
 import frames
 from random import randint
-from runtime import my_iid_repos
 
-start_time = bmx.start_time
+start_time = time.perf_counter()
 
 # avl_tree local_tree
 
@@ -264,7 +264,7 @@ class description:
     ext_frm: int = None                 # not sure if this will be used
             
 @dataclass
-class description_hash:
+class description_hash:                 # UNUSED; simplified to string within dhash_node instead
     u8: int                             # array[HASH_SHA1_LEN] - [20]
     u32: int 
 
@@ -273,141 +273,198 @@ class description_hash:
 
 @dataclass
 class dhash_node:
-    dhash: description_hash             
+    dhash: str                               # description_hash              
+    referred_by_me_timestamp: time = 0      # TIME_T
 
-    referred_by_me_timestamp: time      # TIME_T
+    # neigh: neigh_node = None
 
-    neigh: list                         # neigh_node
-
-    myIID4origL: int                    # IID_T
-    
-    orig_n: list                        # orig_node
+    myIID4orig: int = 0                     # myIID of this dhash_node
+    # orig_n: list                            # orig_node
 
 # avl_tree neigh_trees
 
-# node's own iid_ref consistent in my_iid_repos and neigh_repos
 @dataclass
-class iid_ref:
-    myIID4x: int                         # IID_T
-    referred_by_neigh_timestamp_sec: int        
+class iid_ref:                                  # node's own iid_ref consistent in my_iid_repos and neigh_repos
+    myIID4x: int                                # IID in this node (main_local) vocabulary
+    referred_by_neigh_timestamp_sec: time = 0   # TIME_T
 
 @dataclass
 class iid_entry:
-    u8: int         # repos identifier
-    ref: iid_ref    # universal iid_ref
+    u8: int                                     # can be either the neighIID or my IID
+    ref: iid_ref                                # universal iid_ref
     dhash_n: dhash_node
 
 @dataclass
 class iid_repos:
-    arr_size: int = 0  # number of allocated array fields; = max()?
-    min_free: int = 0  # first unused key from beginning of dictionary
-    max_free: int = 0  # first unused key after the last used field in the dictionary; =max()+1
-    tot_used: int = 0  # total number of used keys; len()
+    arr_size: int = 0                                       # number of allocated array fields
+    min_free: int = 0                                       # first unused index from beginning of the list
+    max_free: int = 0                                       # first unused index after the last used field
+    tot_used: int = 0                                       # total number of used keys; len()
     
-    arr: list = field(default_factory = lambda:[])      # maps iid to corresponding dhash_node 
+    arr: list = field(default_factory = lambda:[])          # serves as the table of iid_entry objects
 
-    def print_repos(self):              # prints repository table contents
-        print(self.arr)
-        print("-----")
-
-    def get_iid_entry(self, IID):
+    def print_repos(self):                                  # prints repository table contents
+        print("arr_size: ", self.arr_size)
+        print("min_free: ", self.min_free)
+        print("max_free: ", self.max_free)
+        print("tot_used: ", self.tot_used)
+        print("u8 | myIID4x | dhash")
         for entry in self.arr:
-            if (entry.u8 == IID):
-                return entry
+            try:
+                print(entry.u8, "|", entry.ref.myIID4x, "|", entry.dhash_n.dhash)
+            except AttributeError:
+                if (entry.ref is None):
+                    print(entry.u8, "|", 0, "|", entry.dhash_n.dhash)
+                elif (entry.dhash_n is None):
+                    print(entry.u8, "|", entry.ref.myIID4x, "|", 0)
+        print("----")
+
+    def get_iid_entry(self, iid):                           # prints repository table contents
+        existing = None
+        for entry in self.arr:
+            if (entry.u8 == iid):
+                existing = entry
+        return existing
+
+    def purge_repos(self):
+        self.arr_size = 0
+        self.min_free = 0
+        self.max_free = 0
+        self.tot_used = 0
+        self.arr.clear()
+
+    def iid_free(self, iid):       # freeing the list item of the given IID
+        # deleting the iid_entry object from the list
+        entry_num = (self.get_iid_entry(iid)).u8 - 1
+        del self.arr[entry_num]
+
+        # re-setting attributes
+        self.min_free = min(self.min_free, iid)
+        if (self.max_free == iid + 1):
+            self.max_free = iid
+        self.tot_used -= 1
+
 
     def iid_set(self, IIDpos, myIID4x, dhnode):
         # setting iid_repos attributes
         self.tot_used += 1
-        self.max_free = max(self.max_free, myIID4x + 1)
+        self.max_free = max(self.max_free, IIDpos + 1)
+        self.arr_size = self.max_free - 1
 
-        min = self.min_free     # list index of first unused key from beginning of list
-        if (min == IIDpos):     # and min <= self.max_free ?
+        min = self.min_free        
+        if (min == IIDpos):
             min += 1
-            # increment until next free position
-            for entry in self.arr[min:]:
-                try:
-                    if (entry.u8 == min):
-                        min += 1
-                except KeyError: break
-
-        self.min_free = min
-
+            for min in range (self.arr_size + 1):           # increment until next free position
+                if (self.get_iid_entry(min) is None):
+                    break
+        self.min_free = self.max_free
+        
+        # adding iid_entry object into list
         if (myIID4x):
-            self.arr[IIDpos].ref.myIID4x = myIID4x
-            self.arr[IIDpos].ref.referred_by_neigh_timestamp_sec = (time.perf_counter() - start_time) * 1000
+            ref = iid_ref(myIID4x,(time.perf_counter() - start_time) * 1000)
+            self.arr.insert(IIDpos-1,iid_entry(IIDpos, ref, None))
         else:
-            self.arr[IIDpos].node = dhnode
+            ref = iid_ref(0,0)
+            self.arr.insert(IIDpos-1, iid_entry(IIDpos, ref, dhnode))
             dhnode.referred_by_me_timestamp = (time.perf_counter() - start_time) * 1000
+
+
+    def iid_new_myIID4x(self, dhnode):                      # called by my_iid_repos only; adds new IID entry given a dhash_node
+        if (self.arr_size >= self.tot_used):
+            rand_iid = randint(0,self.arr_size)
+            mid = max(1,rand_iid)                           # minimum iid value: IID_MIN_USED = 1
+
+            for mid in range(1,self.arr_size + 1):
+                mid += 1
+                if (self.get_iid_entry(mid) is None):
+                    break
+                elif (mid >= self.arr_size):
+                    mid = 1                                 # return to minimum iid value            
+        else:
+            mid = self.min_free
+
+        self.iid_set(mid,0,dhnode)
+        # return mid  # function should be called as dhash_node->myIID4orig = iid_new_myIID4x(dhnode);
+
+    def iid_get_node_by_myIID4x(self, myIID4x):   # to be called ONLY by my_iid_repos
+        if (self.max_free <= myIID4x):
+            return None
+
+        dhn = (self.get_iid_entry(myIID4x)).dhash_n
+
+        # possible error if (dhn && !dhn->on), meaning myIID4x invalidated
+        
+        return dhn
 
 @dataclass
 class neigh_node:
-    neigh_node_key: list                # neigh_node
-    dhash_n: list                       # dhash_node                 
-    # list of dhash_node already contained within iid_repos; will contain reference to my_iid_repos instead
+    neigh_node_key: int = 0                                                     # index of this node in local_node's neigh list
+    dhash_n: int = 0                                                            # corresponding myIID containing the corresponding dhash_node in my_iid_repos                
+    local: local_node = None                                                    # local_node
 
-    local: list                         # local_node
+    neighIID4me: int = 0                                                        # neighIID that neighbor uses for itself
+    neighIID4x_repos: iid_repos = iid_repos()                                   # repository according to the neighbor's vocabulary
 
-    neighIID4me: int                    # IID_T
+    ogm_new_aggregation_received: time = 0                                      # TIME_T
+    ogm_aggregation_cleared_max: int = 0                                        # AGGREG_SQN_T  # ack'd
+    ogm_aggregations_not_acked: list = field(default_factory = lambda:[])       # array[AGGREG_ARRAY_BYTE_SIZE] # not ack'd
+    ogm_aggregations_received: list = field(default_factory = lambda:[])        # array[AGGREG_ARRAY_BYTE_SIZE]
 
-    neighIID4x_repos: iid_repos
-
-    ogm_new_aggregation_received: time  # TIME_T
-    ogm_aggregation_cleared_max: int    # AGGREG_SQN_T  # ack'd
-    ogm_aggregations_not_acked: list    # array[AGGREG_ARRAY_BYTE_SIZE] # not ack'd
-    ogm_aggregations_received: list     # array[AGGREG_ARRAY_BYTE_SIZE]
-
-    def update_self(self, frame):
-        if type(frame) == frames.OGM_ADV:
-            self.ogm_aggregations_received = frame.agg_sqn_no
-            self.ogm_new_aggregation_received = frame.agg_sqn_no
-        pass
+    def ogm_adv_received(self, frame):  # modified function name from update_self to ogm_adv_received
+        self.ogm_aggregations_received = frame.agg_sqn_no
+        self.ogm_new_aggregation_received = frame.agg_sqn_no
 
     def iid_set_neighIID4x(self, neighIID4x, myIID4x):
         self.referred_by_me_timestamp = (time.perf_counter() - start_time) * 1000
-        repos = self.neighIID4x_repos
+        neigh_rep = self.neighIID4x_repos
 
-        if (repos.max_free > neighIID4x):
-            # function 
-            # ref = (repos.get_iid_entry()).ref
-            
-            # if (ref->myIID4x > IID_RSVD_MAX) 
-            pass
+        if (neigh_rep.max_free > neighIID4x):
+            ref_iid = (neigh_rep.get_iid_entry()).myIID     #gets myIID corresponding to neighIID
 
-        while (repos.arr_size <= neighIID4x):   # for catching errors and ectending repos; might not be needed
-            if (repos.arr_size > 32 and repos.arr_size > my_iid_repos.arr_size):
-                print("IID_REPOS USAGE WARNING")
+        # while (repos.arr_size <= neighIID4x):   # for catching errors and ectending repos; might not be needed
+        #     if (repos.arr_size > 32 and repos.arr_size > my_iid_repos.arr_size):
+        #         print("IID_REPOS USAGE WARNING")
 
-        repos.iid_set(neighIID4x, myIID4x)
+        neigh_rep.iid_set(neighIID4x, myIID4x, None)
 
-    def get_myIID4x_by_neighIID4x(self, neighIID4x):
-        myIID4x = self.neighIID4x_repos.arr[neighIID4x]
+    def get_node_by_neighIID4x(self, my_repos, neighIID4x):  
+        neigh_rep = self.neighIID4x_repos
+        ref = (neigh_rep.get_iid_entry(neighIID4x)).ref
 
-        try:
-            return myIID4x
-        except KeyError:
-            return -1
-
-    def get_node_by_neighIID4x(self, my_iid, neighIID4x):    # added by harold from repos.py 
-        if self.get_myIID4x_by_neighIID4x(neighIID4x) == -1:
-            # send HASH_REQ message
-            print("Neighbor IID unknown. Sending Hash Request")
+        if (ref is None):
+            print("neighIID4x=",neighIID4x," not recorded by neigh_repos")
+        elif (((time.perf_counter() - start_time) * 1000) - ref.referred_by_neigh_timestamp_sec > 270):
+            print("neighIID4x=",neighIID4x," outdated in neigh_repos")
         else:
-            myIID4x = self.get_myIID4x_by_neighIID4x(neighIID4x)
+            ref.referred_by_neigh_timestamp_sec = (time.perf_counter() - start_time) * 1000
+            if (ref.myIID4x < my_repos.max_free):
+                dhn = (my_repos.get_iid_entry(ref.myIID4x)).dhash_n
+                if (dhn):
+                    return dhn
 
-            if my_iid.arr[myIID4x] == KeyError:
-                # send DESC_REQ message
-                print("Node description unknown. Sending Description Request")
-            else:
-                print("Retrieved hash from local IID repository: " + my_iid.arr[myIID4x])
+        return None
+
+    # def get_node_by_neighIID4x(self, my_iid, neighIID4x):    # added by harold from repos.py 
+    #     if self.get_myIID4x_by_neighIID4x(neighIID4x) == -1:
+    #         send HASH_REQ message
+    #         print("Neighbor IID unknown. Sending Hash Request")
+    #     else:
+    #         myIID4x = self.get_myIID4x_by_neighIID4x(neighIID4x)
+
+    #         if my_iid.arr[myIID4x] == KeyError:
+    #             send DESC_REQ message
+    #             print("Node description unknown. Sending Description Request")
+    #         else:
+    #             print("Retrieved hash from local IID repository: " + my_iid.arr[myIID4x])
 
 
 # avl_tree orig_tree                           # array[HASH_SHA1_LEN/4] - [20/4]
 
 @dataclass
 class desc_tlv_hash_node:
-    prev_hash: description_hash         # SHA1_T
-    curr_hash: description_hash         # SHA1_T
-    test_hash: description_hash         # SHA1_T
+    prev_hash: str         # SHA1_T
+    curr_hash: str         # SHA1_T
+    test_hash: str         # SHA1_T
     tlv_type: int
     test_changed: int
     prev_changed: int
