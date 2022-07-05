@@ -626,7 +626,7 @@ while True:
 	bmx.send('ff02::2', 6240, 1, packet)
 	print("SENT PACKET: ")
 	print(bmx.dissect_packet(packet).header)
-	print_frames(bmx.dissect_packet(packet).frames, 0)
+	print_frames(bmx.dissect_packet(packet).frames, 2)
 
 
 	################################################################
@@ -651,7 +651,7 @@ while True:
 #	print("this is the sender's ipv6 address: ", senderipv6[0])
 	print("RECEIVED PACKET:")
 	print(packet.header)
-	print_frames(packet.frames, 0)
+	print_frames(packet.frames, 2)
 	#print(senderipv6)
 	packet_received(packet, senderipv6[0])
 	# packet_received(packet2, '::1')
@@ -659,66 +659,69 @@ while True:
 
 	pktSqn += 1
 	bmx.is_max(pktSqn, pktSqnMax)
-	# ### MANUAL TESTING
-	# fhead = frames.header(0,0,0,0)                      # default frame header
 
-	# # HELLO_ADV
-	# hello_frame1 = frames.HELLO_ADV(fhead,10)
-	# head1 = bmx.packet_header(0,0,0,0,0,4,11111,0)
-	# packet1 = bmx.packet(head1, [hello_frame1])
 
-	# # HELLO_ADV
-	# hello_frame3 = frames.HELLO_ADV(fhead,77)
-	# head3 = bmx.packet_header(0,0,0,0,0,2,242424,2)
-	# packet3 = bmx.packet(head3, [hello_frame3])
 
-	# packet_received(packet1, '::1')
-	# packet_received(packet3, '::2')
-	# # print_all(local_list)
-	# form_frames2send_list(fhandler)
-	# print_frames(fhandler.frames2send, 0)
-	# fhandler.iterate()
-	# fhandler.reset()
+# ### MANUAL TESTING
+# fhead = frames.header(0,0,0,0)                      # default frame header
 
-	# # HELLO_ADV, LINK_ADV
-	# hello_frame2 = frames.HELLO_ADV(fhead,12)
-	# ln_msg2 = frames.LINK_ADV_msg(0,1,loid)
-	# ln_frame2 = frames.LINK_ADV(fhead, 1, [ln_msg2])
-	# head2 = bmx.packet_header(0,0,0,0,1,5,11111,0)
-	# packet2 = bmx.packet(head2, [hello_frame2, ln_frame2])
+# # HELLO_ADV
+# hello_frame1 = frames.HELLO_ADV(fhead,10)
+# head1 = bmx.packet_header(0,0,0,0,0,4,11111,0)
+# packet1 = bmx.packet(head1, [hello_frame1])
 
-	# # HELLO_ADV, LINK_ADV
-	# hello_frame4 = frames.HELLO_ADV(fhead,78)
-	# ln_msg4 = frames.LINK_ADV_msg(2,1,loid)
-	# ln_frame4 = frames.LINK_ADV(fhead, 1, [ln_msg4])
-	# head4 = bmx.packet_header(0,0,0,0,1,3,242424,2)
-	# packet4 = bmx.packet(head4, [hello_frame4, ln_frame4])
+# # HELLO_ADV
+# hello_frame3 = frames.HELLO_ADV(fhead,77)
+# head3 = bmx.packet_header(0,0,0,0,0,2,242424,2)
+# packet3 = bmx.packet(head3, [hello_frame3])
 
-	# packet_received(packet2, '::1')
-	# packet_received(packet4, '::2')
-	# print_all(local_list)
-	# print_expected_lndevs(fhandler)
-	# form_frames2send_list(fhandler)
-	# print_frames(fhandler.frames2send, 0)
-	# fhandler.iterate()
-	# fhandler.reset()
+# packet_received(packet1, '::1')
+# packet_received(packet3, '::2')
+# # print_all(local_list)
+# form_frames2send_list(fhandler)
+# print_frames(fhandler.frames2send, 0)
+# fhandler.iterate()
+# fhandler.reset()
 
-	# # HELLO_ADV, RP_ADV
-	# hello_frame5 = frames.HELLO_ADV(fhead,13)
-	# rp_msg5 = frames.RP_ADV_msg(120,1)
-	# rp_frame5 = frames.RP_ADV(fhead, [rp_msg5])
-	# head5 = bmx.packet_header(0,0,0,0,1,6,11111,0)
-	# packet5 = bmx.packet(head5, [hello_frame5, rp_frame5])
+# # HELLO_ADV, LINK_ADV
+# hello_frame2 = frames.HELLO_ADV(fhead,12)
+# ln_msg2 = frames.LINK_ADV_msg(0,1,loid)
+# ln_frame2 = frames.LINK_ADV(fhead, 1, [ln_msg2])
+# head2 = bmx.packet_header(0,0,0,0,1,5,11111,0)
+# packet2 = bmx.packet(head2, [hello_frame2, ln_frame2])
 
-	# packet_received(packet5, '::1')
-	# # print_all(local_list)
-	# print_expected_lndevs(fhandler)
-	# form_frames2send_list(fhandler)
-	# print_frames(fhandler.frames2send, 0)
-	# fhandler.iterate()
-	# fhandler.reset()
+# # HELLO_ADV, LINK_ADV
+# hello_frame4 = frames.HELLO_ADV(fhead,78)
+# ln_msg4 = frames.LINK_ADV_msg(2,1,loid)
+# ln_frame4 = frames.LINK_ADV(fhead, 1, [ln_msg4])
+# head4 = bmx.packet_header(0,0,0,0,1,3,242424,2)
+# packet4 = bmx.packet(head4, [hello_frame4, ln_frame4])
 
-	# # NO FRAMES RECEIVED (TESTS PERIODICAL FRAMES)
-	# time.sleep(5)
-	# form_frames2send_list(fhandler)
-	# print_frames(fhandler.frames2send, 0)
+# packet_received(packet2, '::1')
+# packet_received(packet4, '::2')
+# print_all(local_list)
+# print_expected_lndevs(fhandler)
+# form_frames2send_list(fhandler)
+# print_frames(fhandler.frames2send, 0)
+# fhandler.iterate()
+# fhandler.reset()
+
+# # HELLO_ADV, RP_ADV
+# hello_frame5 = frames.HELLO_ADV(fhead,13)
+# rp_msg5 = frames.RP_ADV_msg(120,1)
+# rp_frame5 = frames.RP_ADV(fhead, [rp_msg5])
+# head5 = bmx.packet_header(0,0,0,0,1,6,11111,0)
+# packet5 = bmx.packet(head5, [hello_frame5, rp_frame5])
+
+# packet_received(packet5, '::1')
+# # print_all(local_list)
+# print_expected_lndevs(fhandler)
+# form_frames2send_list(fhandler)
+# print_frames(fhandler.frames2send, 0)
+# fhandler.iterate()
+# fhandler.reset()
+
+# # NO FRAMES RECEIVED (TESTS PERIODICAL FRAMES)
+# time.sleep(5)
+# form_frames2send_list(fhandler)
+# print_frames(fhandler.frames2send, 0)
