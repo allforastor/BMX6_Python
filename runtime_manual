@@ -11,12 +11,199 @@ from sys import getsizeof
 from collections import deque
 from numpy import append, empty
 from dataclasses import dataclass, field
-import bmx
 import nodes
 import frames
 
 
+### FROM BMX.PY
 
+group = 'ff02::2'
+MYPORT = 6240
+MYTTL = 1
+
+frame_type_HELLO_ADV = 4
+
+frame_type_DEV_REQ = 6
+frame_type_DEV_ADV = 7
+frame_type_LINK_REQ = 8
+frame_type_LINK_ADV = 9
+
+frame_type_RP_ADV = 11
+
+
+frame_type_DESC_REQ = 14
+frame_type_DESC_ADV = 15
+
+
+frame_type_HASH_REQ = 18
+frame_type_HASH_ADV = 19
+
+
+frame_type_OGM_ADV = 22
+frame_type_OGM_ACK = 23
+
+
+@dataclass
+class packet_header:
+    bmx_version: int
+    reserved: int
+    pkt_len: int
+    transmitterIID: int
+    link_adv_sqn: int
+    pkt_sqn: int
+    local_id: int
+    dev_idx: int
+
+@dataclass
+class packet:
+    header: packet_header
+    frames: list
+
+def set_frame_header(frame):
+	short_frame_header_length = 2
+	long_frame_header_length = 4
+	relevant_frame = frame.frm_header.relevant_frm
+
+
+	if type(frame) == frames.HELLO_ADV: # if frame type is HELLO_ADV, set frm_type to 1
+		frame_type = frame_type_HELLO_ADV
+		short_frame = 1
+		hello_sqn_no = frame.HELLO_sqn_no
+		frame_length = short_frame_header_length + 2 #size of the hello sequence number
+		created_frame = frames.HELLO_ADV(frames.short_header(short_frame, relevant_frame, frame_type, frame_length), hello_sqn_no)
+
+	elif type(frame) == frames.RP_ADV:
+		frame_type = frame_type_RP_ADV
+		reserved = 0
+		if len(frame.rp_msgs)*1 + short_frame_header_length > 255:
+			short_frame = 0
+			frame_length = long_frame_header_length + 1*(len(frame.rp_msgs))
+			created_frame = frames.RP_ADV(frames.long_header(short_frame, relevant_frame, frame_type, reserved, frame_length), frame.rp_msgs)
+		else:
+			short_frame = 1
+			frame_length = short_frame_header_length + 1*(len(frame.rp_msgs))
+			created_frame = frames.RP_ADV(frames.short_header(short_frame, relevant_frame, frame_type, frame_length), frame.rp_msgs)
+
+	elif type(frame) == frames.LINK_REQ:
+		frame_type = frame_type_LINK_REQ
+		short_frame = 1
+		destination_local_id = frame.dest_local_id
+		frame_length = short_frame_header_length + 4 #size of the destination local id
+		created_frame = frames.LINK_REQ(frames.short_header(short_frame, relevant_frame, frame_type, frame_length), destination_local_id)
+
+	elif type(frame) == frames.LINK_ADV:
+		frame_type = frame_type_LINK_ADV
+		reserved = 0
+		device_sequence_no_reference_length = 2
+		if len(frame.link_msgs)*6 + device_sequence_no_reference_length + short_frame_header_length > 255:
+			short_frame = 0
+			frame_length = long_frame_header_length + device_sequence_no_reference_length + 6*(len(frame.link_msgs)) #since every link msg is 6 bytes in length
+			created_frame = frames.LINK_ADV(frames.long_header(short_frame, relevant_frame, frame_type, reserved, frame_length), frame.dev_sqn_no_ref, frame.link_msgs)
+		else:
+			short_frame = 1
+			frame_length = short_frame_header_length + device_sequence_no_reference_length + 6*(len(frame.link_msgs)) #since every link msg is 6 bytes in length
+			created_frame = frames.LINK_ADV(frames.short_header(short_frame, relevant_frame, frame_type, frame_length), frame.dev_sqn_no_ref, frame.link_msgs)
+	
+	elif type(frame) == frames.DEV_REQ:
+		frame_type = frame_type_DEV_REQ
+		short_frame = 1
+		destination_local_id = frame.dest_local_id
+		frame_length = short_frame_header_length + 4 # size of tHe destination local id
+		created_frame = frames.DEV_REQ(frames.short_header(short_frame, relevant_frame, frame_type, frame_length), destination_local_id)
+
+	elif type(frame) == frames.DEV_ADV:
+		frame_type = frame_type_DEV_ADV
+		reserved = 0
+		device_sequence_no_length = 2
+		if len(frame.dev_msgs)*26 + device_sequence_no_length + short_frame_header_length > 255:
+			short_frame = 0
+			frame_length = long_frame_header_length + device_sequence_no_length + 26*(len(frame.dev_msgs))
+			created_frame = frames.DEV_ADV(frames.long_header(short_frame, relevant_frame, frame_type, reserved, frame_length), frame.dev_sqn_no, frame.dev_msgs)
+	
+		else:
+			short_frame = 1
+			frame_length = short_frame_header_length + device_sequence_no_length + 26*(len(frame.dev_msgs))
+			created_frame = frames.DEV_ADV(frames.short_header(short_frame, relevant_frame, frame_type, frame_length), frame.dev_sqn_no, frame.dev_msgs)
+	
+	elif type(frame) == frames.DESC_REQ:
+		frame_type = frame_type_DESC_REQ
+		reserved = 0
+		if len(frame.desc_msgs)*6 + short_frame_header_length > 255:
+			short_frame = 0
+			frame_length = long_frame_header_length + 6*(len(frame.desc_msgs))
+			created_frame = frames.DESC_REQ(frames.long_header(short_frame, relevant_frame, frame_type, reserved, frame_length), frame.desc_msgs)
+		else:
+			short_frame = 1
+			frame_length = short_frame_header_length + 6*(len(frame.desc_msgs))
+			created_frame = frames.DESC_REQ(frames.short_header(short_frame, relevant_frame, frame_type, frame_length), frame.desc_msgs)
+
+	elif type(frame) == frames.DESC_ADV:
+		frame_type = frame_type_DESC_ADV
+		reserved = 0
+		extension_frame_length_counter = 0
+		for i in frame.desc_msgs:
+			extension_frame_length_counter += i.ext_len
+
+		if len(frame.desc_msgs)*70 + extension_frame_length_counter + short_frame_header_length > 255:
+			short_frame = 0
+			frame_length = long_frame_header_length + len(frame.desc_msgs)*70 + extension_frame_length_counter
+			created_frame = frames.DESC_ADV(frames.long_header(short_frame, relevant_frame, frame_type, reserved, frame_length), frame.desc_msgs)
+
+		else:
+			short_frame = 1
+			frame_length = short_frame_header_length + len(frame.desc_msgs)*70 + extension_frame_length_counter
+			created_frame = frames.DESC_ADV(frames.short_header(short_frame, relevant_frame, frame_type, frame_length), frame.desc_msgs)
+
+	elif type(frame) == frames.HASH_REQ:
+		frame_type = frame_type_HASH_REQ
+		reserved = 0
+		if len(frame.hash_msgs)*6 + short_frame_header_length > 255:
+			short_frame = 0
+			frame_length = long_frame_header_length + 6*(len(frame.hash_msgs))
+			created_frame = frames.HASH_REQ(frames.long_header(short_frame, relevant_frame, frame_type, reserved, frame_length), frame.hash_msgs)
+		else:
+			short_frame = 1
+			frame_length = short_frame_header_length + 6*(len(frame.hash_msgs))
+			created_frame = frames.HASH_REQ(frames.short_header(short_frame, relevant_frame, frame_type, frame_length), frame.hash_msgs)
+
+	elif type(frame) == frames.HASH_ADV:
+		frame_type = frame_type_HASH_ADV
+		short_frame = 1
+		transmitterIID4x = frame.trans_iid4x
+		description_hash = frame.desc_hash
+		frame_length = short_frame_header_length + 2 + 20 # size of the transmitterIID4x = 2 bytes and size of description hash is 20 bytes
+		created_frame = frames.HASH_ADV(frames.short_header(short_frame, relevant_frame, frame_type, frame_length), transmitterIID4x, description_hash)
+
+	elif type(frame) == frames.OGM_ACK:
+		frame_type = frame_type_OGM_ACK
+		reserved = 0
+		if len(frame.ogm_ack_msgs)*2 + short_frame_header_length > 255:
+			short_frame = 0
+			frame_length = long_frame_header_length + 2*(len(frame.ogm_ack_msgs)) #since every ogm_ack msg is 2 bytes in length
+			created_frame = frames.OGM_ACK(frames.long_header(short_frame, relevant_frame, frame_type, reserved, frame_length), frame.ogm_ack_msgs)
+		else:
+			short_frame = 1
+			frame_length = short_frame_header_length + 2*(len(frame.ogm_ack_msgs)) #since every ogm_ack msg is 2 bytes in length
+			created_frame = frames.OGM_ACK(frames.short_header(short_frame, relevant_frame, frame_type, frame_length), frame.ogm_ack_msgs)
+
+	elif type(frame) == frames.OGM_ADV:
+		frame_type = frame_type_OGM_ADV
+		reserved = 0
+		aggregation_sequence_number_length = 1
+		ogm_destination_array_size_length = 1
+		ogm_destination_array_length = len(frame.ogm_dest_arr)
+		if len(frame.ogm_adv_msgs)*4 + short_frame_header_length + aggregation_sequence_number_length + ogm_destination_array_size_length + ogm_destination_array_length > 255:
+			short_frame = 0
+			frame_length = long_frame_header_length + aggregation_sequence_number_length + ogm_destination_array_size_length + ogm_destination_array_length + 4*(len(frame.ogm_adv_msgs))
+			created_frame = frames.OGM_ADV(frames.long_header(short_frame, relevant_frame, frame_type, reserved, frame_length), frame.agg_sqn_no, 
+											frame.ogm_dest_arr_size, frame.ogm_dest_arr, frame.ogm_adv_msgs)
+		else:
+			short_frame = 1
+			frame_length = short_frame_header_length + aggregation_sequence_number_length + ogm_destination_array_size_length + ogm_destination_array_length + 4*(len(frame.ogm_adv_msgs))
+			created_frame = frames.OGM_ADV(frames.short_header(short_frame, relevant_frame, frame_type, frame_length), frame.agg_sqn_no, 
+											frame.ogm_dest_arr_size, frame.ogm_dest_arr, frame.ogm_adv_msgs)
+
+	return created_frame
 
 ### INITIALIZATION
 
@@ -48,11 +235,11 @@ class frame_handler:
     
     def iterate(self):
         for frame in self.frames2send:    
-            if(type(frame) == frames.HELLO_ADV):    # HELLO_ADV sqn
+            if(type(frame) == frames.HELLO_ADV):    # HELLO_ADV sqn iterates after each periodical HELLO_ADV sent
                 self.hello_sqn = self.hello_sqn + 1
-            elif(type(frame) == frames.DEV_ADV):    # DEV_ADV sqn
+            elif(type(frame) == frames.DEV_ADV):    # DEV_ADV sqn iterates when a new DEV_ADV is sent
                 self.dev_sqn = self.dev_sqn + 1
-            elif(type(frame) == frames.DEV_ADV):    # LINK_ADV sqn
+            elif(type(frame) == frames.DEV_ADV):    # LINK_ADV sqn iterates when a new DEV_ADV is sent
                 self.link_sqn = self.link_sqn + 1
 
 def get_interfaces(iflist):
@@ -244,7 +431,7 @@ def print_all(nodes):
                 print('\t\t\t\t\t\t', "    tx_probe_umetric =", lndev.tx_probe_umetric)
                 print('\t\t\t\t\t\t', "    timeaware_tx_probe =", lndev.timeaware_tx_probe)
                 print('\t\t\t\t\t\t', "    rx_probe_record:")
-                print('\t\t\t\t\t\t\t', "hello_sqn_max =", lndev.rx_probe_record.hello_sqn_max)                
+                print('\t\t\t\t\t\t\t', "hello_sqn_max =", lndev.rx_probe_record.hello_sqn_max)
                 print('\t\t\t\t\t\t\t', "hello_array = ", list(itertools.islice(lndev.rx_probe_record.hello_array, 0, 38)))
                 print('\t\t\t\t\t\t\t', list(itertools.islice(lndev.rx_probe_record.hello_array, 38, 81)))
                 print('\t\t\t\t\t    ', list(itertools.islice(lndev.rx_probe_record.hello_array, 80, 127)))
@@ -410,7 +597,7 @@ def packet_received(self, ip6):
 
 
     ## FRAME ITERATION
-    # print_frames(self.frames, 1)
+    print_frames(self.frames, 1)
     
     link_req = 0    # set to 1 if a REQ must be sent
     dev_req = 0     # set to 1 if a REQ must be sent
@@ -548,7 +735,7 @@ def packet_received(self, ip6):
 
 def form_frames2send_list(frame_handler):	
     # PERIODICAL (every 500ms)
-    frame_handler.frames2send.append(bmx.set_frame_header(frames.HELLO_ADV( #### HELLO_ADV
+    frame_handler.frames2send.append(set_frame_header(frames.HELLO_ADV( #### HELLO_ADV
                             frm_header=frames.header(0,0,0,0),  
                             HELLO_sqn_no=frame_handler.hello_sqn                # uint16_t (0 - 65535)
                             )))
@@ -557,12 +744,12 @@ def form_frames2send_list(frame_handler):
     # NON-PERIODICAL
     if frame_handler.dev_req_ids:                                           #### DEV_REQ
         for dev_req_id in frame_handler.dev_req_ids:
-            frame_handler.frames2send.append(bmx.set_frame_header(frames.DEV_REQ(
+            frame_handler.frames2send.append(set_frame_header(frames.DEV_REQ(
                             frm_header=frames.header(0,0,0,0),
                             dest_local_id=dev_req_id                            # uint32_t (0 - 4294967295)
                             )))
     if frame_handler.dev_msgs2send:                                         #### DEV_ADV
-        frame_handler.frames2send.append(bmx.set_frame_header(frames.DEV_ADV(
+        frame_handler.frames2send.append(set_frame_header(frames.DEV_ADV(
                             frm_header=frames.header(0,0,0,0),
                             dev_sqn_no=frame_handler.dev_sqn,                   # uint16_t (0 - 65535)
                             dev_msgs=frame_handler.dev_msgs2send
@@ -570,13 +757,13 @@ def form_frames2send_list(frame_handler):
 
     if frame_handler.link_msgs2send:                                        #### LINK_REQ
         for link_req_id in frame_handler.link_req_ids:
-            frame_handler.frames2send.append(bmx.set_frame_header(frames.LINK_REQ(
+            frame_handler.frames2send.append(set_frame_header(frames.LINK_REQ(
                             frm_header=frames.header(0,0,0,0),
                             dest_local_id=link_req_id                           # uint32_t (0 - 4294967295)
                             )))
     if frame_handler.link_msgs2send:                                        #### LINK_ADV
         frame_handler.lndevs_expected = copy.deepcopy(frame_handler.lndevs_possible)
-        frame_handler.frames2send.append(bmx.set_frame_header(frames.LINK_ADV(
+        frame_handler.frames2send.append(set_frame_header(frames.LINK_ADV(
                             frm_header=frames.header(0,0,0,0),
                             dev_sqn_no_ref=main_local.dev_adv_sqn,              # uint16_t (0 - 65535)
                             link_msgs=frame_handler.link_msgs2send
@@ -595,70 +782,84 @@ def form_frames2send_list(frame_handler):
                                 rp_127range=rp_127_converted,                   # 7 bits (0 - 127)
                                 ogm_req=0                                       # 1 bit (0 / 1) (HAROLD)
                                 ))
-        frame_handler.frames2send.append(bmx.set_frame_header(frames.RP_ADV(
+        frame_handler.frames2send.append(set_frame_header(frames.RP_ADV(
                             frm_header=frames.header(0,0,0,0),  
                             rp_msgs=frame_handler.rp_msgs2send
                             )))
 
 
 
-pktSqnMax = 4294967295
-pktSqn = random.randint(0,pktSqnMax)
-
-while True:
-	################################################################
-	#########   COMPLETE FRAME HEADERS AND PACKET HEADER   #########
-	################################################################
-	# packer_header.bmx_version = 16
-	# packer_header.reserved = ???
-	# packer_header.pkt_len = (TRISTAN)
-	# packer_header.transmitterIID = ???
-	# packer_header.link_adv_sqn = fhandler.link_sqn
-	# packer_header.pkt_sqn = (TRISTAN)
-	# packer_header.local_id = main_local.local_id
-	# packer_header.dev_idx = device_idx
-
-	packet_header = bmx.packet_header(16,0,0,0,fhandler.link_sqn,pktSqn,main_local.local_id,device_idx)
-
-	form_frames2send_list(fhandler)
-	
-	################################################################
-	####################   CALL SEND FUNCTION   ####################
-	################################################################
-	packet = bmx.create_packet(packet_header, fhandler.frames2send) 		### created packet here is as bytes
-	bmx.send('ff02::2', 6240, 1, packet)
-	print("SENT PACKET: ")
-	print("  ", bmx.dissect_packet(packet).header)
-	print_frames(bmx.dissect_packet(packet).frames, 2)
 
 
-	################################################################
-	####################   CALL AFTER SENDING   ####################
-	################################################################
-	fhandler.iterate()    # iterates all sqn that were sent
-	fhandler.reset()      # empties lists to be sent
+### MANUAL TESTING
+# check if initialized properly
+print_interfaces(dev_list)
+print(lomac)
+print(hex(loid))
+print("local_id =", loid,'\n')
 
 
 
-	### TESTING
+fhead = frames.header(0,0,0,0)                      # default frame header
 
-	# check if initialized properly
-#	print_interfaces(dev_list)
-#	print(lomac)
-#	print(hex(loid))
-#	print("local_id =", loid,'\n')
+# HELLO_ADV
+hello_frame1 = frames.HELLO_ADV(fhead,10)
+head1 = packet_header(0,0,0,0,0,4,11111,0)
+packet1 = packet(head1, [hello_frame1])
 
-	# check if the receive packet fills the data properly
-	recvdpacket, senderipv6 = bmx.listen('ff02::2', 6240)           #### CALLED RECEIVING FUNCTION HERE ####
-	packet = bmx.dissect_packet(recvdpacket)
-#	print("this is the sender's ipv6 address: ", senderipv6[0])
-	print("RECEIVED PACKET:")
-	print("  ", packet.header)
-	print_frames(packet.frames, 2)
-	#print(senderipv6)
-	packet_received(packet, senderipv6[0])
-	# packet_received(packet2, '::1')
-#	print_all(local_list)
+# HELLO_ADV
+hello_frame3 = frames.HELLO_ADV(fhead,77)
+head3 = packet_header(0,0,0,0,0,2,242424,2)
+packet3 = packet(head3, [hello_frame3])
 
-	pktSqn += 1
-	bmx.is_max(pktSqn, pktSqnMax)
+packet_received(packet1, '::1')
+packet_received(packet3, '::2')
+# print_all(local_list)
+form_frames2send_list(fhandler)
+print_frames(fhandler.frames2send, 0)
+fhandler.iterate()
+fhandler.reset()
+
+# HELLO_ADV, LINK_ADV
+hello_frame2 = frames.HELLO_ADV(fhead,12)
+ln_msg2 = frames.LINK_ADV_msg(0,1,loid)
+ln_frame2 = frames.LINK_ADV(fhead, 1, [ln_msg2])
+head2 = packet_header(0,0,0,0,1,5,11111,0)
+packet2 = packet(head2, [hello_frame2, ln_frame2])
+
+# HELLO_ADV, LINK_ADV
+hello_frame4 = frames.HELLO_ADV(fhead,78)
+ln_msg4 = frames.LINK_ADV_msg(2,1,loid)
+ln_frame4 = frames.LINK_ADV(fhead, 1, [ln_msg4])
+head4 = packet_header(0,0,0,0,1,3,242424,2)
+packet4 = packet(head4, [hello_frame4, ln_frame4])
+
+packet_received(packet2, '::1')
+packet_received(packet4, '::2')
+print_all(local_list)
+print_expected_lndevs(fhandler)
+form_frames2send_list(fhandler)
+print_frames(fhandler.frames2send, 0)
+fhandler.iterate()
+fhandler.reset()
+
+# HELLO_ADV, RP_ADV
+hello_frame5 = frames.HELLO_ADV(fhead,13)
+rp_msg5 = frames.RP_ADV_msg(120,1)
+rp_frame5 = frames.RP_ADV(fhead, [rp_msg5])
+head5 = packet_header(0,0,0,0,1,6,11111,0)
+packet5 = packet(head5, [hello_frame5, rp_frame5])
+
+packet_received(packet5, '::1')
+# print_all(local_list)
+print_expected_lndevs(fhandler)
+form_frames2send_list(fhandler)
+print_frames(fhandler.frames2send, 0)
+fhandler.iterate()
+fhandler.reset()
+
+# NO FRAMES RECEIVED (TESTS PERIODICAL FRAMES)
+time.sleep(5)
+form_frames2send_list(fhandler)
+print_frames(fhandler.frames2send, 0)
+
