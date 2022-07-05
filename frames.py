@@ -155,28 +155,6 @@ class DEV_ADV_msg:
     local_ipv6: int             # 16 bytes (hex)
     mac_address: int            # 6 bytes (hex)
         
-    #local ipv6 and mac address is in hex form
-    def get_local_ipv6(self):  #gets the ipv6 address of the device
-        try:
-            s = socket.socket(socket.AF_INET6, socket.SOCK_DGRAM)
-            s.connect(('2001:4860:4860::8888', 1))
-            local_ipv6 = s.getsockname()[0]
-            self.local_ipv6 = hex(int(ipaddress.IPv6Address(local_ipv6))).replace('0x', '')
-
-        except:
-            local_ipv6 = '::1'
-            self.local_ipv6 = hex(int(ipaddress.IPv6Address(local_ipv6))).replace('0x', '')
-
-        finally:
-            if 's' in locals():
-                s.close()
-
-
-    def get_mac_address(self): #gets the mac address of the device
-       # self.mac_address = ':'.join(re.findall('..', '%012x' % uuid.getnode()))
-        self.mac_address = hex(uuid.getnode()).replace('0x', '')
-        #self.mac_address = uuid.getnode()
-        
 @dataclass
 class DEV_ADV:
     frm_header: header

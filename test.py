@@ -1,14 +1,13 @@
-from ctypes import sizeof
-from dataclasses import dataclass, field
 import sys
 import time
-import ipaddress
+import psutil
 import random
 import socket
-import psutil
-
-from nodes import dev_node
+import ipaddress
 from scipy import rand
+from nodes import dev_node
+from ctypes import sizeof
+from dataclasses import dataclass, field
 
 ## DATACLASSES
 
@@ -261,101 +260,3 @@ from scipy import rand
 # mac_converted2 = int(mac[0]+mac[1]+mac[3]+mac[4]+mac[6]+mac[7]+mac[9]+mac[10]+mac[12]+mac[13]+mac[15]+mac[16], 16)
 # print(mac_converted)
 # print(mac_converted2)
-
-###############################################################################
-
-def get_interfaces(iflist):
-    dev_id = len(iflist)
-    
-    if(len(iflist) == 0):
-        iflist.append(dev_node())
-        dev_id = dev_id + 1
-
-    def check_interface(name, iflist):
-        for itf in iflist:
-            if((itf.name == name) and (itf.idx > 0)):
-                return itf.idx
-        return -1
-
-    def inactive(iflist):
-        for itf in iflist:                                                      # assume all interfaces inactive
-            itf.active = 0
-
-    inactive(iflist)
-    for x, y in psutil.net_if_addrs().items():
-        id = check_interface(x, iflist)
-        if(id == -1):
-            interface = dev_node(name = x, idx = dev_id, active = 1)  # new interfaces always active
-        else:
-            interface = iflist[id]                                          # if found, mark as active
-            iflist[id].active = 1  
-        for z in y:
-            # print('\t', z, type(z))
-            # print('\t\t', z.family)
-            # print('\t\t', z.address)
-            if(z.family is socket.AF_INET):
-                interface.ipv4 = z.address
-            elif(z.family is socket.AF_INET6):
-                interface.ipv6 = z.address
-            else:
-                interface.mac = z.address
-        if((interface.mac == "00:00:00:00:00:00") and (interface.ipv6 == '::1')):   # linux loopback interface
-            interface.mac = None
-        if((interface.umetric_min is None) and (interface.umetric_max is None)):
-            if((interface.mac is None) and (interface.ipv6 == '::1')):              # loopback interface
-                interface.type = 0
-                interface.umetric_min = 128849018880    # UMETRIC_MAX
-                interface.umetric_max = 128849018880    # UMETRIC_MAX
-                interface.fmu8_min = 255                # 0xff (converted UMETRIC to FMETRIC_U8_T)
-                interface.fmu8_max = 255                # 0xff (converted UMETRIC to FMETRIC_U8_T)
-            elif((interface.name[0] == 'e') or (interface.name[0] == 'E')):         # ethernet
-                interface.type = 1
-                interface.channel = 255
-                interface.umetric_min = 1000000000      # DEF_DEV_BITRATE_MIN_LAN
-                interface.umetric_max = 1000000000      # DEF_DEV_BITRATE_MAX_LAN
-                interface.fmu8_min = 199                # 0xc7 (converted UMETRIC to FMETRIC_U8_T)
-                interface.fmu8_max = 199                # 0xc7 (converted UMETRIC to FMETRIC_U8_T)
-            else:
-                interface.type = 2                                                  # wireless
-                interface.umetric_min = 6000000         # DEF_DEV_BITRATE_MIN_WIFI
-                interface.umetric_max = 56000000        # DEF_DEV_BITRATE_MAX_WIFI
-                interface.fmu8_min = 139                # 0x8b (converted UMETRIC to FMETRIC_U8_T)
-                interface.fmu8_max = 165                # 0xa5 (converted UMETRIC to FMETRIC_U8_T)
-        if(interface.type == 0):
-            interface.idx = 0
-            iflist[0] = interface
-        elif(id == -1):
-            iflist.append(interface)
-            dev_id = dev_id + 1
-        else:
-            iflist[id] = interface
-        # print(interface, '\n')
-    
-    for interface in iflist:
-        if(interface.type == 1):
-            return interface.mac                                        # use ethernet mac addr for local_id generation
-    return -1
-
-def print_interfaces(iflist):
-    for x in iflist:
-        print(x.idx," - '",x.name,"':",sep='')
-        if(x.ipv4 is not None):
-            print("    IPv4:",'\t', x.ipv4)
-        if(x.ipv6 is not None):
-            print("    IPv6:",'\t', x.ipv6)
-        if(x.mac is not None):
-            print("    MAC:",'\t', x.mac)
-        print("    type:",'\t', x.type)
-        print("    active:",'\t', x.active)
-        print("    channel:",'\t', x.channel)
-        print("    umetric_min:", x.umetric_min)
-        print("    umetric_max:", x.umetric_max)
-        print("    fmu8_min:", x.fmu8_min)
-        print("    fmu8_max:", x.fmu8_max)
-    print()
-
-
-interfaces = []
-get_interfaces(interfaces)
-
-print_interfaces(interfaces)
