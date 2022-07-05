@@ -1,17 +1,22 @@
+import socket
+import struct
+import string
 import sys
-import time
-import pickle
 import random
 import socket
-import string
-import struct
-import binascii
-import threading
-from datetime import datetime
-from dataclasses import dataclass
+import pickle
 from xml.etree.ElementTree import canonicalize
 import frames as frames
+import time
+from datetime import datetime
+from dataclasses import dataclass
+import threading
+import binascii
+#from runtime import *
 
+group = 'ff02::2'
+MYPORT = 6240
+MYTTL = 1
 
 frame_type_HELLO_ADV = 4
 
@@ -38,19 +43,19 @@ frame_type_OGM_ACK = 23
 
 @dataclass
 class packet_header:
-	bmx_version: int
-	reserved: int
-	pkt_len: int
-	transmitterIID: int
-	link_adv_sqn: int
-	pkt_sqn: int
-	local_id: int
-	dev_idx: int
+    bmx_version: int
+    reserved: int
+    pkt_len: int
+    transmitterIID: int
+    link_adv_sqn: int
+    pkt_sqn: int
+    local_id: int
+    dev_idx: int
 
 @dataclass
 class packet:
-	header: packet_header
-	frames: list
+    header: packet_header
+    frames: list
 
 #receive packet
 def listen(group, port):
@@ -74,7 +79,7 @@ def listen(group, port):
 	data, sender = s.recvfrom(1500)
 	while data[-1:] == '\0': data = data[:-1] # Strip trailing \0's
 	
-	return data
+	return data, sender
 	#data = pickle.loads(data)
 	#print (str(sender) + '  ' + repr(data))	
 
@@ -91,11 +96,9 @@ def send(group, port, ttl, msg):
 	s.sendto(msg + b'\0', (addrinfo[4][0], port))
 #	time.sleep(1)
 
-
 def is_max(sqn_no, sqn_max):
 	if sqn_no == sqn_max:
 		sqn_no = 0
-
 
 #creating packet together with the packetheader
 def create_packet(packetheader, frameslist):
@@ -150,7 +153,7 @@ def create_packet(packetheader, frameslist):
 	created_packet = packetheader + frames_bytes
 
 	return created_packet
-
+	
 def dissect_packet(recvd_packet):
 	curr_pos = 17
 	packetheader = recvd_packet[:curr_pos]
@@ -162,7 +165,15 @@ def dissect_packet(recvd_packet):
 	frameslist = []
 
 	while curr_pos != packetheader.pkt_len:#when not end of the recvd bytes
-		if recvd_packet[curr_pos] >= 128:
+		#checks the first bit(short_frame) of the recvd packet if the current frame has a short frame header or a long frame header 
+		first_byte = recvd_packet[curr_pos:curr_pos + 1]
+		#print(first_byte)
+		first_byte = first_byte[0]
+		#print(first_byte)
+		short_frame = (first_byte >> 7) & 1
+		#print(short_frame)
+		
+		if short_frame == 1:
 			frameheader_unkown = recvd_packet[curr_pos:curr_pos + 2]
 			frameheader_unkown = dissect_short_frame_header(frameheader_unkown)
 		else:
@@ -174,7 +185,7 @@ def dissect_packet(recvd_packet):
 			hello_adv_frame = recvd_packet[curr_pos:curr_pos + frameheader_unkown.frm_len]
 			hello_adv_frame = dissect_HELLO_ADV(hello_adv_frame)
 			frameslist.append(hello_adv_frame)
-			curr_pos += hello_adv_frame.frm_header.frm_len #x now becomes the start of the next byte length/seq
+			curr_pos += hello_adv_frame.frm_header.frm_len #curr_pos now becomes the start of the next byte length/seq
 
 		elif frameheader_unkown.frm_type == frame_type_RP_ADV:
 			rp_adv_frame = recvd_packet[curr_pos: curr_pos + frameheader_unkown.frm_len]
@@ -182,13 +193,13 @@ def dissect_packet(recvd_packet):
 			frameslist.append(rp_adv_frame)
 			curr_pos += rp_adv_frame.frm_header.frm_len
 
-		elif frameheader_unkown.frm_type == frame_type_LINK_REQ: #if frame type is 3, then it is LINK_REQ frame
+		elif frameheader_unkown.frm_type == frame_type_LINK_REQ: 
 			link_req_frame = recvd_packet[curr_pos: curr_pos + frameheader_unkown.frm_len]
 			link_req_frame = dissect_LINK_REQ(link_req_frame)
 			frameslist.append(link_req_frame)
 			curr_pos += link_req_frame.frm_header.frm_len
 
-		elif frameheader_unkown.frm_type == frame_type_LINK_ADV: #if frame type is 4, then it is a LINK_ADV frame
+		elif frameheader_unkown.frm_type == frame_type_LINK_ADV: 
 			link_adv_frame = recvd_packet[curr_pos: curr_pos + frameheader_unkown.frm_len]
 			link_adv_frame = dissect_LINK_ADV(link_adv_frame)
 			frameslist.append(link_adv_frame)
@@ -211,7 +222,7 @@ def dissect_packet(recvd_packet):
 			desc_req_frame = dissect_DESC_REQ(desc_req_frame)
 			frameslist.append(desc_req_frame)
 			curr_pos += desc_req_frame.frm_header.frm_len
-		#not yet done
+		
 		elif frameheader_unkown.frm_type == frame_type_DESC_ADV:
 			desc_adv_frame = recvd_packet[curr_pos:curr_pos + frameheader_unkown.frm_len]
 			desc_adv_frame = dissect_DESC_ADV(desc_adv_frame)
@@ -254,7 +265,7 @@ def short_frame_header_to_bytes(header):
 	relevant_frame = header.relevant_frm
 	frame_type = header.frm_type
 
-	#using bitshifting to store short frame(1 bit), relevant frame(1 bit) and frame type(6 bits) into 1 byte(8 bits)
+	#used bitshifting to store short frame(1 bit), relevant frame(1 bit) and frame type(6 bits) into 1 byte(8 bits)
 	shortFrm_relevantFrm_frmType = short_frame << 7 | relevant_frame << 6 | frame_type
 
 	frame_header = struct.pack("!BB", shortFrm_relevantFrm_frmType, header.frm_len)
@@ -269,8 +280,8 @@ def dissect_short_frame_header(recvd_header):
 	frame_len = data[1]
 
 	# unpacking short frame, relevant frame and frame type
-	short_frame = (shortFrm_relevantFrm_frmType >> 7) & 1 		# & 1 since max value for short frame is 1(1 bit)
-	relevant_frame = (shortFrm_relevantFrm_frmType >> 6) & 1 	# & 1 since max value for relevant frame is 1(1 bit)
+	short_frame = (shortFrm_relevantFrm_frmType >> 7) & 1 			# & 1 since max value for short frame is 1(1 bit)
+	relevant_frame = (shortFrm_relevantFrm_frmType >> 6) & 1 		# & 1 since max value for relevant frame is 1(1 bit)
 	frame_type = shortFrm_relevantFrm_frmType & 63 				# & 63 since max value for frame type is 63(6 bits)
 
 	frame_header = frames.short_header(short_frame, relevant_frame, frame_type, frame_len)
@@ -301,8 +312,8 @@ def dissect_long_frame_header(recvd_header):
 	frame_length = data[2]
 
 	# unpacking short frame, relevant frame and frame type
-	short_frame = (shortFrm_relevantFrm_frmType >> 7) & 1 		# & 1 since max value for short frame is 1(1 bit)
-	relevant_frame = (shortFrm_relevantFrm_frmType >> 6) & 1 	# & 1 since max value for relevant frame is 1(1 bit)
+	short_frame = (shortFrm_relevantFrm_frmType >> 7) & 1 			# & 1 since max value for short frame is 1(1 bit)
+	relevant_frame = (shortFrm_relevantFrm_frmType >> 6) & 1 		# & 1 since max value for relevant frame is 1(1 bit)
 	frame_type = shortFrm_relevantFrm_frmType & 63 				# & 63 since max value for frame type is 63(6 bits)
 
 	frame_header = frames.long_header(short_frame, relevant_frame, frame_type, reserved, frame_length)
@@ -594,7 +605,10 @@ def LINK_ADV_to_bytes(LINK_ADV):
 	LINK_ADV = set_frame_header(LINK_ADV)
 	frame_header = is_short_header(LINK_ADV.frm_header)
 	
-	device_sequence_no_reference = struct.pack("!H", LINK_ADV.dev_sqn_no_ref)
+	if LINK_ADV.dev_sqn_no_ref < 0:
+		device_sequence_no_reference = struct.pack("!h", LINK_ADV.dev_sqn_no_ref)
+	else:
+		device_sequence_no_reference = struct.pack("!H", LINK_ADV.dev_sqn_no_ref)
 
 	link_adv_msg_list = b''
 	for i in LINK_ADV.link_msgs:
@@ -1131,90 +1145,23 @@ def dissect_OGM_ADV(recvd_OGM_ADV):
 
 
 
+
 '''
-#adding request frames to frames 2 send list alongside with the unsolicited adv frames
-def send_REQ_frame(REQ_frame, frames2send):
-	#if we wish to send LINK_REQ, it will append LINK_REQ and LINK_ADV to frames2send list 
-	#same with other REQ frames
-	if REQ_frame == frames.LINK_REQ: 
-		frames2send.extend([REQ_frame, frames.LINK_ADV])
+hello = frames.HELLO_ADV(frames.short_header(0,0,0,0), 1000)
+frameslist = [hello]
+packetheader = packet_header(1, 2, 3, 4, 5, 6, 7, 8)
 
-	if REQ_frame == frames.HASH_REQ:
-		frames2send.extend([REQ_frame, frames.HASH_ADV])
-
-	if REQ_frame == frames.DESC_REQ:
-		frames2send.extend([REQ_frame, frames.DESC_ADV])
-
-	if REQ_frame == frames.DEV_REQ:
-		frames2send.extend([REQ_frame, frames.DEV_ADV])
-
-#checks if the received packet has req frames, then add appropriate adv frames
-#to the frames to send list
-def send_ADV_frames(recvd_frames, frames2send):
-	for i in recvd_frames: ##iterate through the list of frames received to 
-							# check if there is any REQ frame. add appropriate ADV frame to frames list 
-							# if there is any REQ frame
-		#if there is DESC_REQ in received frame list, it will append DESC_ADV to frames2send list
-		#same with others
-		if i == frames.DESC_REQ:
-			frames2send.append(frames.DESC_ADV)
-
-		if i == frames.LINK_REQ:
-			frames2send.append(frames.LINK_ADV)
-
-		if i == frames.HASH_REQ:
-			frames2send.append(frames.HASH_ADV)
-
-		if i == frames.DEV_REQ:
-			frames2send.append(frames.DEV_ADV)
- '''       
-
-		
-		
-#just test port values
-port = 8080
-group = 'ff02::2'
-ttl = 1
-
-
-
-
-transient_state = True
-knowsAllNodes = False
-pktSqnMax = 4294967295
-pktSqn = random.randint(0,pktSqnMax//2) #since packet sequence start at random 
+a = create_packet(packetheader, frameslist)
 
 while True:
-	frames2send = [frames.HELLO_ADV, frames.RP_ADV] #periodic messages to be  
-													#sent together with the packets
+	f , senders = listen(group, MYPORT)
+	f = dissect_packet(f)
+	print(f)
+#	frames_list = runtime.packet_received(f, senders[0])
+#	print(dissect_packet(a))
+	#send(group, MYPORT, MYTTL, a)
+#	print_all(local_list)
+#	print(frames_list)
+
 	
-	threading.Thread(target = listen(group, port)).start() #receiving packets
-
-	is_max(pktSqn, pktSqnMax) # checks if the current packet sequence reached the maximum packet sequence
-
-	#if in transient state
-	while transient_state:
-		recvd = listen(group, port) #stores the received packet to recvd variable
-
-		#if it knows every nodes, enter steady state
-		if knowsAllNodes:
-			transient_state = False
-
-		#else append non periodic frames
-		else:
-			recvd_frames = recvd.frames #store packet frames list to recevd_frames
-			
-			#send_ADV_frames(recvd_frames, frames2send) 
-
-			knowsAllNodes = True #then knows every node
-
-	pktSqn += 1 #increment sqn number every sending of packets
-
-	#creating packets
-	msg = packet(packet_header(3,4,5,6,7,pktSqn, 9, 0), frames2send) #some of the integers are test values
-	print(msg)
-	time.sleep(0.5) #Hello and Rp sent every 0.5s
-	print(datetime.now().time()) #show current time
-
-	send(group, port, ttl, msg) #sending packets
-
+'''
