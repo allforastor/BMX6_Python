@@ -437,12 +437,15 @@ def packet_received(self, ip6):
     # match rp_adv msgs with link_adv msgs
     if rp:
         rp_index = 0
-        for link_msg in main_local.link_adv:
+        for link_msg in local_list[local_index].link_adv:
             if(link_msg.peer_local_id == main_local.local_id):
                 for lndev in link_list[link_index].lndev_list:
                     if((link_msg.peer_dev_index == lndev.key.dev.idx) and (lndev.key.dev.active == 1)):
                         lndev.tx_probe_umetric = (rp[rp_index].rp_127range / 127) * 128849018880    # UMETRIC_MAX
+                        # print("     REF\t[", rp_index, "]  ", link_msg, "  <--->  ", rp[rp_index], "\n", sep='')
             rp_index = rp_index + 1
+            if(rp_index == len(rp)):
+                break
 
     # obtain timeaware tx/rx values and update best linkdevs
     for lndev in link_dev_list:                 # ADD: check if update is critical

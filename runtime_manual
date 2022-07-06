@@ -624,12 +624,15 @@ def packet_received(self, ip6):
     # match rp_adv msgs with link_adv msgs
     if rp:
         rp_index = 0
-        for link_msg in main_local.link_adv:
+        for link_msg in local_list[local_index].link_adv:
             if(link_msg.peer_local_id == main_local.local_id):
                 for lndev in link_list[link_index].lndev_list:
                     if((link_msg.peer_dev_index == lndev.key.dev.idx) and (lndev.key.dev.active == 1)):
                         lndev.tx_probe_umetric = (rp[rp_index].rp_127range / 127) * 128849018880    # UMETRIC_MAX
+                        print("     REF\t[", rp_index, "]  ", link_msg, "  <--->  ", rp[rp_index], "\n", sep='')
             rp_index = rp_index + 1
+            if(rp_index == len(rp)):
+                break
 
     # obtain timeaware tx/rx values and update best linkdevs
     for lndev in link_dev_list:                 # ADD: check if update is critical
@@ -823,21 +826,25 @@ fhandler.reset()
 # HELLO_ADV, LINK_ADV
 hello_frame2 = frames.HELLO_ADV(fhead,12)
 ln_msg2 = frames.LINK_ADV_msg(0,1,loid)
-ln_frame2 = frames.LINK_ADV(fhead, 1, [ln_msg2])
+ln_frame2 = frames.LINK_ADV(fhead, 1, [frames.LINK_ADV_msg(0,4,loid), ln_msg2])
+rp_msg2 = frames.RP_ADV_msg(80,1)
+rp_frame2 = frames.RP_ADV(fhead, [rp_msg2, rp_msg2])
 head2 = packet_header(0,0,0,0,1,5,11111,0)
-packet2 = packet(head2, [hello_frame2, ln_frame2])
+packet2 = packet(head2, [hello_frame2, ln_frame2, rp_frame2])
 
 # HELLO_ADV, LINK_ADV
 hello_frame4 = frames.HELLO_ADV(fhead,78)
 ln_msg4 = frames.LINK_ADV_msg(2,1,loid)
 ln_frame4 = frames.LINK_ADV(fhead, 1, [ln_msg4])
+rp_msg4 = frames.RP_ADV_msg(30,1)
+rp_frame4 = frames.RP_ADV(fhead, [rp_msg4, ])
 head4 = packet_header(0,0,0,0,1,3,242424,2)
-packet4 = packet(head4, [hello_frame4, ln_frame4])
+packet4 = packet(head4, [hello_frame4, ln_frame4, rp_frame4])
 
 packet_received(packet2, '::1')
 packet_received(packet4, '::2')
-print_all(local_list)
-print_expected_lndevs(fhandler)
+# print_all(local_list)
+# print_expected_lndevs(fhandler)
 form_frames2send_list(fhandler)
 print_frames(fhandler.frames2send, 0)
 fhandler.iterate()
@@ -852,14 +859,14 @@ packet5 = packet(head5, [hello_frame5, rp_frame5])
 
 packet_received(packet5, '::1')
 # print_all(local_list)
-print_expected_lndevs(fhandler)
+# print_expected_lndevs(fhandler)
 form_frames2send_list(fhandler)
 print_frames(fhandler.frames2send, 0)
 fhandler.iterate()
 fhandler.reset()
 
 # NO FRAMES RECEIVED (TESTS PERIODICAL FRAMES)
-time.sleep(5)
-form_frames2send_list(fhandler)
-print_frames(fhandler.frames2send, 0)
+# time.sleep(5)
+# form_frames2send_list(fhandler)
+# print_frames(fhandler.frames2send, 0)
 
