@@ -473,17 +473,17 @@ def packet_received(self, ip6):
     ## FRAME SENDING (frame headers are to be set later)
 
     # check if DEV_REQ IS NEEDED 
-    if(main_local.link_adv_dev_sqn_ref > local_list[local_index].dev_adv_sqn):
+    if(local_list[local_index].link_adv_dev_sqn_ref > local_list[local_index].dev_adv_sqn):
         outdated_dev = 1                        # set to 1 if dev is outdated
-    elif(main_local.link_adv_dev_sqn_ref == local_list[local_index].dev_adv_sqn):
+    elif(local_list[local_index].link_adv_dev_sqn_ref == local_list[local_index].dev_adv_sqn):
         outdated_dev = 0                        # set to 0 if dev is updated
     else:
         outdated_dev = -1
 
     # check if LINK_REQ IS NEEDED 
-    if(main_local.packet_link_sqn_ref > local_list[local_index].link_adv_sqn):
+    if(local_list[local_index].packet_link_sqn_ref > local_list[local_index].link_adv_sqn):
         outdated_link = 1                       # set to 1 if link is outdated
-    elif(main_local.packet_link_sqn_ref == local_list[local_index].link_adv_sqn):
+    elif(local_list[local_index].packet_link_sqn_ref == local_list[local_index].link_adv_sqn):
         outdated_link = 0                       # set to 0 if link is updated
     else:
         outdated_link = -1
