@@ -210,7 +210,7 @@ def set_frame_header(frame):
 @dataclass
 class frame_handler:
     hello_sqn: int = random.randint(0,65535)                    # add 1 every send of HELLO_ADV
-    dev_sqn: int = 1                                            # add 1 every send of DEV_ADV
+    dev_sqn: int = 2                                            # add 1 every send of DEV_ADV
     link_sqn: int = 1                                           # add 1 every send of LINK_ADV
     msg_index: int = 0                                          # serves as the index for LINK_ADV/RP_ADV ordering
 
@@ -541,6 +541,7 @@ def packet_received(self, ip6):
     ## NODE STRUCTURE INITIALIZATION
     active_known = 0
     active_devices = 0
+    mismatch = 0
     get_interfaces(dev_list)                    # get latest device list
 
     # check if the packet sender already has a local_node for the sender
@@ -587,8 +588,9 @@ def packet_received(self, ip6):
             active_devices = active_devices + 1
     if(active_known < active_devices):          # if there is a mismatch, then there is new active device
         for dev in dev_list:
-            if((dev.type != 0) and (dev.active == 1) and (dev.idx > len(link_list[check_if_exists(nodes.link_node_key(self.header.local_id, self.header.dev_idx))].lndev_list))):  
-                lndev = nodes.link_dev_node(key = nodes.link_dev_key(link_list[check_if_exists(nodes.link_node_key(self.header.local_id, self.header.dev_idx))], dev), rx_probe_record= nodes.lndev_probe_record(hello_array = deque(127*[0], 127)))
+            if((dev.type != 0) and (dev.active == 1) and (dev.idx > len(link_list[link_index].lndev_list))):  
+                mismatch = 1
+                lndev = nodes.link_dev_node(key = nodes.link_dev_key(link_list[link_index], dev), rx_probe_record= nodes.lndev_probe_record(hello_array = deque(127*[0], 127)))
                 link_list[link_index].lndev_list.append(lndev)                             # add lndev to the the link's lndev_list
                 link_dev_list.append(lndev)     # store in global link_dev_node list
             
@@ -689,7 +691,7 @@ def packet_received(self, ip6):
                                 local_ipv6=int(ipaddress.ip_address(dev.ipv6)), # int (hex)
                                 mac_address=mac_converted                       # int (hex)
                                 ))
-    elif(main_local.link_tree and (dev_req == 1)):      # ADD: or if dev_list changed after calling get_interfaces
+    elif(main_local.link_tree and ((dev_req == 1) or (mismatch == 1))):
         for dev in dev_list:                                                #### DEV_ADV
             if((dev.type != 0) and (dev.active == 1)):
                 mac_converted = int(dev.mac[0]+dev.mac[1]+dev.mac[3]+dev.mac[4]+dev.mac[6]+dev.mac[7]+dev.mac[9]+dev.mac[10]+dev.mac[12]+dev.mac[13]+dev.mac[15]+dev.mac[16], 16)
@@ -704,19 +706,20 @@ def packet_received(self, ip6):
 
     if(main_local.link_tree and (outdated_link == 1)):
         fhandler.link_req_ids.append(self.header.local_id)                  #### LINK_REQ
-        lndev_count = 0                                                     #### LINK_ADV (unsolicited)
-        for lndev in link_list[link_index].lndev_list:
-            if(lndev.key.dev.active == 1):
-                fhandler.link_msgs2send.append(frames.LINK_ADV_msg(
-                                trans_dev_index=lndev.key.dev.idx,              # uint8_t (0 - 255)
-                                peer_dev_index=self.header.dev_idx,             # uint8_t (0 - 255)
-                                peer_local_id=self.header.local_id              # uint32_t (0 - 4294967295)
-                                ))
-                fhandler.lndevs_possible.append([copy.deepcopy(link_index), copy.deepcopy(lndev_count)])
-                main_local.link_adv_msg_for_him = len(fhandler.lndevs_possible) - 1
-                local_list[local_index].link_adv_msg_for_him = len(fhandler.lndevs_possible) - 1
-            lndev_count = lndev_count + 1
-        fhandler.lndevs_expected.clear()
+        if(local_list[local_index].link_adv_sqn == -1):                     #### LINK_ADV (unsolicited)
+            lndev_count = 0
+            for lndev in link_list[link_index].lndev_list:
+                if(lndev.key.dev.active == 1):
+                    fhandler.link_msgs2send.append(frames.LINK_ADV_msg(
+                                    trans_dev_index=lndev.key.dev.idx,          # uint8_t (0 - 255)
+                                    peer_dev_index=self.header.dev_idx,         # uint8_t (0 - 255)
+                                    peer_local_id=self.header.local_id          # uint32_t (0 - 4294967295)
+                                    ))
+                    fhandler.lndevs_possible.append([copy.deepcopy(link_index), copy.deepcopy(lndev_count)])
+                    main_local.link_adv_msg_for_him = len(fhandler.lndevs_possible) - 1
+                    local_list[local_index].link_adv_msg_for_him = len(fhandler.lndevs_possible) - 1
+                lndev_count = lndev_count + 1
+            fhandler.lndevs_expected.clear()
     elif(main_local.link_tree and (outdated_dev == 0) and (link_req == 1)):
         lndev_count = 0                                                     #### LINK_ADV
         for lndev in link_list[link_index].lndev_list:
@@ -758,7 +761,7 @@ def form_frames2send_list(frame_handler):
                             dev_msgs=frame_handler.dev_msgs2send
                             )))
 
-    if frame_handler.link_msgs2send:                                        #### LINK_REQ
+    if frame_handler.link_req_ids:                                          #### LINK_REQ
         for link_req_id in frame_handler.link_req_ids:
             frame_handler.frames2send.append(set_frame_header(frames.LINK_REQ(
                             frm_header=frames.header(0,0,0,0),
@@ -857,6 +860,7 @@ rp_frame5 = frames.RP_ADV(fhead, [rp_msg5])
 head5 = packet_header(0,0,0,0,1,6,11111,0)
 packet5 = packet(head5, [hello_frame5, rp_frame5])
 
+time.sleep(5)
 packet_received(packet5, '::1')
 # print_all(local_list)
 # print_expected_lndevs(fhandler)
