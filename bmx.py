@@ -18,6 +18,8 @@ group = 'ff02::2'
 MYPORT = 6240
 MYTTL = 1
 
+# frame types(int) of each frames
+
 frame_type_HELLO_ADV = 4
 
 frame_type_DEV_REQ = 6
@@ -57,7 +59,7 @@ class packet:
     header: packet_header
     frames: list
 
-#receive packet
+#receiving packet
 def listen(group, port):
 	# Look up multicast group address in name server 
 	addrinfo = socket.getaddrinfo(group, None)[0]
@@ -83,6 +85,7 @@ def listen(group, port):
 	#data = pickle.loads(data)
 	#print (str(sender) + '  ' + repr(data))	
 
+#sending of packets
 def send(group, port, ttl, msg):
 	addrinfo = socket.getaddrinfo(group, None)[0]
 
@@ -96,14 +99,17 @@ def send(group, port, ttl, msg):
 	s.sendto(msg + b'\0', (addrinfo[4][0], port))
 #	time.sleep(1)
 
+# checks if the sequence number is max, if already max, current sequence number becomes 0
 def is_max(sqn_no, sqn_max):
 	if sqn_no == sqn_max:
 		sqn_no = 0
 
 #creating packet together with the packetheader
 def create_packet(packetheader, frameslist):
-	frames_bytes = b''
+	frames_bytes = b'' #initialization of list of frames as bitwise data 
 
+	# iterates through the list of frames to send, convert each frames
+	# into bitwise data and add that converted frames into frame_bytes
 	for i in frameslist:
 		if type(i) == frames.HELLO_ADV:
 			frames_bytes += HELLO_ADV_to_bytes(i)
@@ -141,51 +147,62 @@ def create_packet(packetheader, frameslist):
 		elif type(i) == frames.OGM_ADV:
 			frames_bytes += OGM_ADV_to_bytes(i)
 
+	
+	len_of_all_frames = len(frames_bytes)		# computes the total length(in bytes) of the frames to send
 
-	len_of_all_frames = len(frames_bytes)
+	packetheader.pkt_len = len_of_all_frames + 17	# set the packet length of the created packet. it is the length 
+							# of the frames to send plus 17(which is the length of the packet header)
 
-	packetheader.pkt_len = len_of_all_frames + 17
-
+	# converts the packet header data into bitwise data 
 	packetheader = struct.pack("!BBHHHIIB", packetheader.bmx_version, packetheader.reserved, 
 					packetheader.pkt_len, packetheader.transmitterIID, packetheader.link_adv_sqn, 
 					packetheader.pkt_sqn, packetheader.local_id, packetheader.dev_idx)
 
-	created_packet = packetheader + frames_bytes
+	created_packet = packetheader + frames_bytes	# created packet consists of packet header(in bytes) + frames to send(in bytes)
 
 	return created_packet
-	
+
+# dissect and parse the received packet which is in a bitwise data format 
 def dissect_packet(recvd_packet):
 	curr_pos = 17
-	packetheader = recvd_packet[:curr_pos]
-	packetheader_raw = struct.unpack("!BBHHHIIB", packetheader)
+	packetheader = recvd_packet[:curr_pos]				# since packet header is in the first 17 bytes of the received packet
+	packetheader_raw = struct.unpack("!BBHHHIIB", packetheader)	# unpack the packet header
+	
+	# since struct.unpack() returns tuple, extract each data and parse that into packet header data class
 	packetheader = packet_header(packetheader_raw[0], packetheader_raw[1], packetheader_raw[2], 
 								packetheader_raw[3], packetheader_raw[4], packetheader_raw[5], 
 								packetheader_raw[6], packetheader_raw[7])
 
-	frameslist = []
+	frameslist = []			# initialize and empty frames list and append every frames parsed into it
 
-	while curr_pos != packetheader.pkt_len:#when not end of the recvd bytes
-		#checks the first bit(short_frame) of the recvd packet if the current frame has a short frame header or a long frame header 
-		first_byte = recvd_packet[curr_pos:curr_pos + 1]
-		#print(first_byte)
-		first_byte = first_byte[0]
-		#print(first_byte)
-		short_frame = (first_byte >> 7) & 1
-		#print(short_frame)
+	while curr_pos != packetheader.pkt_len:				#when not end of the recvd bytes
 		
+		first_byte = recvd_packet[curr_pos:curr_pos + 1]	# checks the first bit(short_frame) of the recvd packet if
+									# the current frame has a short frame header or a long frame header 
+		# get the first byte of a frame and 
+		# extract the short_frame
+		first_byte = first_byte[0]				
+		short_frame = (first_byte >> 7) & 1			
+		
+		# if short_frame is 1, meaning its frame is a short frame
+		# and dissect and parse that frame header as short_frame
 		if short_frame == 1:
-			frameheader_unkown = recvd_packet[curr_pos:curr_pos + 2]
+			frameheader_unkown = recvd_packet[curr_pos:curr_pos + 2]	# plus two since the length of the short frame header is 2 bytes
 			frameheader_unkown = dissect_short_frame_header(frameheader_unkown)
+		# else, dissect and parse frame header as long_frame
 		else:
-			frameheader_unkown = recvd_packet[curr_pos:curr_pos + 4]
+			frameheader_unkown = recvd_packet[curr_pos:curr_pos + 4]	# plus four since the length of the long frame header is 4 bytes
 			frameheader_unkown = dissect_long_frame_header(frameheader_unkown)			
 		
-		#checks the frame type of the dissected frame and appends it to the frames list
+		
+		# checks the frame type(that is found in frame header) of the dissected 
+		# frame, parse that into corresponding frame type data class and 
+		# appends it to the frames list
 		if frameheader_unkown.frm_type == frame_type_HELLO_ADV: 
 			hello_adv_frame = recvd_packet[curr_pos:curr_pos + frameheader_unkown.frm_len]
 			hello_adv_frame = dissect_HELLO_ADV(hello_adv_frame)
 			frameslist.append(hello_adv_frame)
-			curr_pos += hello_adv_frame.frm_header.frm_len #curr_pos now becomes the start of the next byte length/seq
+			curr_pos += hello_adv_frame.frm_header.frm_len 			#curr_pos now becomes the start of the next byte length/seq
 
 		elif frameheader_unkown.frm_type == frame_type_RP_ADV:
 			rp_adv_frame = recvd_packet[curr_pos: curr_pos + frameheader_unkown.frm_len]
@@ -253,7 +270,8 @@ def dissect_packet(recvd_packet):
 			frameslist.append(ogm_adv_frame)
 			curr_pos += ogm_adv_frame.frm_header.frm_len
 
-	packetrecvd = packet(packetheader, frameslist)
+	packetrecvd = packet(packetheader, frameslist)					# create a packet data class using the parsed packet header 
+											# and frames list
 
 	return packetrecvd
 
