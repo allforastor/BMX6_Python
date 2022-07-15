@@ -96,7 +96,7 @@ def send(group, port, ttl, msg):
 	s.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_MULTICAST_HOPS, ttl_bin)
 #	data = repr(time.time())
 #	msg = pickle.dumps(msg)
-	s.sendto(msg + b'\0', (addrinfo[4][0], port))
+	s.sendto(msg, (addrinfo[4][0], port))
 #	time.sleep(1)
 
 # checks if the sequence number is max, if already max, current sequence number becomes 0
